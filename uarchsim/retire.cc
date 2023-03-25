@@ -47,6 +47,7 @@ void pipeline_t::retire(size_t& instret) {
    //      is squashed including the offending instruction.
 
    // FIX_ME #17a BEGIN
+   head_valid = REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr, offending_PC);
    // FIX_ME #17a END
 
    if (head_valid && completed) {    // AL head exists and completed
@@ -73,18 +74,19 @@ void pipeline_t::retire(size_t& instret) {
       }
 
       if (!exception && !load_viol) {
-	 //
+	      //
          // FIX_ME #17b
-	 // Commit the instruction at the head of the active list.
-	 //
+         // Commit the instruction at the head of the active list.
+         //
 
          // FIX_ME #17b BEGIN
+         REN->commit();
          // FIX_ME #17b END
 
-	 // If the committed instruction is a load or store, signal the LSU to commit its oldest load or store, respectively.
+	      // If the committed instruction is a load or store, signal the LSU to commit its oldest load or store, respectively.
          if (load || store) {
             assert(load != store);   // Make sure that the same instruction does not have both flags set.
-	    LSU.train(load);	     // Train MDP and update stats.
+	        LSU.train(load);	     // Train MDP and update stats.
             amo_success = LSU.commit(load, amo);
             assert(amo_success);     // Assert store-conditionals (SC) are successful.
          }

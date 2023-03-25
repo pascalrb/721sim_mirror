@@ -32,13 +32,14 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 		RENAME2[i].valid = false;
 	}
 
-        //
-        // FIX_ME #17c
-        // Squash the renamer.
-        //
+	//
+	// FIX_ME #17c
+	// Squash the renamer.
+	//
 
-        // FIX_ME #17c BEGIN
-        // FIX_ME #17c END
+	// FIX_ME #17c BEGIN
+	REN->squash();
+	// FIX_ME #17c END
 
 
 	//////////////////////////

@@ -64,8 +64,9 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    This is unnecessary since instructions don't need accurate branch masks in perfect branch prediction
             //    mode... since they are never selectively squashed by branches anyway.
 
-	    // FIX_ME #15a BEGIN
-	    // FIX_ME #15a END
+            // FIX_ME #15a BEGIN
+            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
+            // FIX_ME #15a END
          }
          else if (PAY.buf[index].next_pc == PAY.buf[index].c_next_pc) {
             // Branch was predicted correctly.
@@ -85,8 +86,10 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //      indicates whether or not the branch was predicted correctly: in this case it is correct.
             //    * See pipeline.h for details about the two arguments of resolve().
 
-	    // FIX_ME #15b BEGIN
-	    // FIX_ME #15b END
+            // FIX_ME #15b BEGIN
+            resolve(PAY.buf[index].branch_ID, true);
+            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
+            // FIX_ME #15b END
          }
          else {
             // Branch was mispredicted.
@@ -113,6 +116,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    This will restore the RMT, FL, and AL, and also free this and future checkpoints... etc.
 
             // FIX_ME #15c BEGIN
+            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, false);
             // FIX_ME #15c END
 
             // Restore the LQ/SQ.
@@ -131,6 +135,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    * See pipeline.h for details about the two arguments of resolve().
 
             // FIX_ME #15d BEGIN
+            resolve(PAY.buf[index].branch_ID, false);
             // FIX_ME #15d END
 
             // Rollback PAY to the point of the branch.
@@ -148,6 +153,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // FIX_ME #16 BEGIN
+      REN->set_complete(PAY.buf[index].AL_index);
       // FIX_ME #16 END
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
