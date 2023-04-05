@@ -1,5 +1,3 @@
-
-
 #include <inttypes.h>
 #include <vector>
 
@@ -31,10 +29,10 @@ private:
     vector<uint64_t> RMT;
 
 	/////////////////////////////////////////////////////////////////////
-	// Structure 2: Checkpoint Buffer
+	// Structure 2: Architectural Map Table
 	// Entry contains: physical register mapping
 	/////////////////////////////////////////////////////////////////////
-    vector<uint64_t> checkpoint_buffer;
+    vector<uint64_t> AMT;
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 3: Free List
@@ -111,13 +109,15 @@ private:
         bool is_csr_instr;
     }active_list_e;
     
-    typedef struct CPBUF{
-        vector<active_list_e> CPBUF_entries;    //active_list_e AL_entry[AL_SIZE]; 
+    typedef struct AL{
+        vector<active_list_e> AL_entries;    //active_list_e AL_entry[AL_SIZE]; 
         uint64_t head;
         uint64_t tail;
-    }checkpoint_buffer_t;
+        bool head_pb;               //head phase bit
+        bool tail_pb;               //tail phase bit
+    }active_list_t;
 
-    checkpoint_buffer_t CP_BUF;
+    active_list_t AL;
 
 
 	/////////////////////////////////////////////////////////////////////
@@ -559,3 +559,4 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	bool get_exception(uint64_t AL_index);
 };
+
