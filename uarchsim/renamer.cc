@@ -24,26 +24,32 @@ renamer::renamer(uint64_t n_log_regs,
     LOGREG_RMT_AMT_SIZE         = n_log_regs;
     PHYS_REG_SIZE               = n_phys_regs;
     UNRESOLVED_BRANCHES_SIZE    = n_branches;
-    AL_SIZE                     = n_active;
+    //AL_SIZE                     = n_active;       //TODO: may no longer need
     FL_SIZE                     = n_phys_regs - n_log_regs;
 
     // PRF init. Just allocate space for it
     PRF.resize(PHYS_REG_SIZE);
     for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
         //initially all of the PRF_ready_bits are available to be used
-        // (in AMT & FL)
+        // (in FL)
         PRF_rb.push_back(true);
+
+        //initially all Phys Regs are unmapped 
+        PRFUnnmappedBits.push_back(true);
+        PRFUsageCounter.push_back(0);
     }
 
-    // AMT & RMT init. initially AMT & RMT have same value
+    // RMT init. initially RMT have same value
     for(uint64_t i=0; i<LOGREG_RMT_AMT_SIZE; i++){
-        //initially AMT & RMT point to the first [n_log_regs] regs of the PRF
+        //initially RMT point to the first [n_log_regs] regs of the PRF
         RMT.push_back(i);   
-        AMT.push_back(i);   
+
+        //Phys Regs mapped to RMT need their unmapped bit set to false
+        PRFUnnmappedBits[i] = false;
     }
     
     // Free List init
-    FL.head = 0;
+    FL.head = 0;                                    //TODO: may not need since Phys Reg reclammation is OoO
     FL.tail = 0;
     FL.head_pb = false;     // 0 ]___\ full
     FL.tail_pb = true;      // 1 ]   /
@@ -52,17 +58,21 @@ renamer::renamer(uint64_t n_log_regs,
         FL.fl_regs.push_back(i); 
     }
 
-    // Active List init
-    AL.head = 0;
-    AL.tail = 0;
-    AL.head_pb = false;     // 0 ]___\ empty
-    AL.tail_pb = false;     // 0 ]   /
-    AL.AL_entries.resize(AL_SIZE);
+    // Initialize first "oldest" checkpoint buffer
+    CPBuffer.head = 0;                                    //TODO: may not need since Phys Reg reclammation is OoO
+    CPBuffer.tail = 0;
+    CPBuffer.head_pb = false;     // 0 ]___\ empty
+    CPBuffer.tail_pb = false;     // 0 ]   /
+    CPBuffer.CPBuffEntries.resize(n_branches);
 
-    // Allocate space for the Branch Checkpoints
-    BCs.resize(UNRESOLVED_BRANCHES_SIZE);
+    CPBuffer.CPBuffEntries[0].RMT_copy                  = RMT;
+    CPBuffer.CPBuffEntries[0].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
+    CPBuffer.CPBuffEntries[0].PRFUsageCounter_copy      = PRFUsageCounter;
+    CPBuffer.CPBuffEntries[0].uncompleted_instr_count   = 0;
+    CPBuffer.CPBuffEntries[0].load_count                = 0;
+    CPBuffer.CPBuffEntries[0].store_count               = 0;
+    CPBuffer.CPBuffEntries[0].branch_count              = 0;
 
-    GBM = 0;
 
     //printf("    AMT: %lu, RMT: %lu, AL: %lu, FL: %lu, BCs: %lu\n", AMT.size(), RMT.size(), AL.AL_entries.size(), FL.fl_regs.size(), BCs.size());
 }

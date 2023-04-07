@@ -3,7 +3,7 @@
 
 using namespace std;
 
-#define MAX_UNRESOLVED_BRANCHES 64
+#define MAX_UNRESOLVED_BRANCHES 64 //TODO: set to 8??
 
 class renamer {
 private:
@@ -20,7 +20,10 @@ private:
 
     // log_regs: 64, phys_regs: 320, AL_Size: 256
 
-    //TODO make sure all ^^ are initialized
+    //TODO: make sure all ^^ are initialized
+
+	//TODO: review all the TODOs in renamer.h and renamer.cc
+	//TODO: order the "Structure X:"
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 1: Rename Map Table
@@ -29,10 +32,36 @@ private:
     vector<uint64_t> RMT;
 
 	/////////////////////////////////////////////////////////////////////
-	// Structure 2: Architectural Map Table
-	// Entry contains: physical register mapping
+	// Structure 2: Checkpoint Buffer
+	// Entry contains: Copy of RMT, PRF Unmapped Bits & Usage Counters, and
+	// 					other counters.
 	/////////////////////////////////////////////////////////////////////
-    vector<uint64_t> AMT;
+	typedef struct CPBuff_e{
+    	vector<uint64_t> RMT_copy;
+    	vector<bool> PRFUnnmappedBits_copy;  
+		vector<uint64_t> PRFUsageCounter_copy;  
+
+		uint64_t uncompleted_instr_count;
+		uint64_t load_count;
+		uint64_t store_count;
+		uint64_t branch_count;
+	}CPBuff_entry_t;
+
+	typedef struct CPBuffer{
+		vector<CPBuff_entry_t> CPBuffEntries;
+        uint64_t head;
+        uint64_t tail;
+        bool head_pb;               //head phase bit
+        bool tail_pb;               //tail phase bit
+	}CPBuffer_t;
+
+	CPBuffer_t CPBuffer;
+
+	/////////////////////////////////////////////////////////////////////
+	// Structure 3: Checkpoint Buffer
+	// Entry contains: Checkpointed RMT and 4 counters: 
+	/////////////////////////////////////////////////////////////////////
+    //vector<uint64_t> AMT;  //TODO: no longer need
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 3: Free List
@@ -51,8 +80,6 @@ private:
     }free_list_t;
 
     free_list_t FL;
-
-
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 4: Active List
@@ -92,36 +119,36 @@ private:
 	// Notes:
 	// * Structure includes head, tail, and their phase bits.
 	/////////////////////////////////////////////////////////////////////
-    typedef struct AL_e{
-        uint64_t PC;
-        uint64_t dest_log_reg; 
-        uint64_t dest_phys_reg;
-        bool has_dest_reg;
-        bool is_completed;
-        bool is_exception;
-        bool is_load_violated;
-        bool is_branch_mispredicted;
-        bool is_value_mispredicted;
-        bool is_load_instr;
-        bool is_store_instr;
-        bool is_branch_instr;
-        bool is_amo_instr;
-        bool is_csr_instr;
-    }active_list_e;
+    //typedef struct AL_e{
+    //    uint64_t PC;
+    //    uint64_t dest_log_reg; 
+    //    uint64_t dest_phys_reg;
+    //    bool has_dest_reg;
+    //    bool is_completed;
+    //    bool is_exception;
+    //    bool is_load_violated;
+    //    bool is_branch_mispredicted;
+    //    bool is_value_mispredicted;
+    //    bool is_load_instr;
+    //    bool is_store_instr;
+    //    bool is_branch_instr;
+    //    bool is_amo_instr;
+    //    bool is_csr_instr;
+    //}active_list_e;
     
-    typedef struct AL{
-        vector<active_list_e> AL_entries;    //active_list_e AL_entry[AL_SIZE]; 
-        uint64_t head;
-        uint64_t tail;
-        bool head_pb;               //head phase bit
-        bool tail_pb;               //tail phase bit
-    }active_list_t;
+    //typedef struct AL{
+    //    vector<active_list_e> AL_entries;    //active_list_e AL_entry[AL_SIZE]; 
+    //    uint64_t head;
+    //    uint64_t tail;
+    //    bool head_pb;               //head phase bit
+    //    bool tail_pb;               //tail phase bit
+    //}active_list_t;
 
-    active_list_t AL;
+    //active_list_t AL;
 
 
 	/////////////////////////////////////////////////////////////////////
-	// Structure 5: Physical Register File
+	// Structure 4: Physical Register File
 	// Entry contains: value
 	//
 	// Notes:
@@ -130,12 +157,31 @@ private:
 	/////////////////////////////////////////////////////////////////////
     vector<uint64_t> PRF; 
 
-
 	/////////////////////////////////////////////////////////////////////
-	// Structure 6: Physical Register File Ready Bit Array
+	// Structure 5: Physical Register File Ready Bit Array
 	// Entry contains: ready bit
 	/////////////////////////////////////////////////////////////////////
-    vector<bool> PRF_rb;
+    vector<bool> PRF_rb;  //TODO: may no longer need. Leaving for now
+
+	/////////////////////////////////////////////////////////////////////
+	// Structure 6: PRF Usage Counter
+	// Entry contains: the current usage count of physical register. 
+	// 
+	// Note: Users are src operands of live instrs, checkpointed RMTs, 
+	//		(not the current RMT)
+	/////////////////////////////////////////////////////////////////////
+	vector<uint64_t> PRFUsageCounter;
+
+	/////////////////////////////////////////////////////////////////////
+	// Structure 7: PRF Unmapped Bits
+	// Entry contains: the current mapping state of physical registers
+	//
+	// Note: A phys reg gets mapped at renaming when a dest regs gets assigned an 
+	// 		 operation. Gets unmmaped when a new phys reg gets assigned that same 
+	//		 dest log reg
+	/////////////////////////////////////////////////////////////////////
+    vector<bool> PRFUnnmappedBits;		
+
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 7: Global Branch Mask (GBM)
@@ -174,7 +220,7 @@ private:
 	// is configurable by the user of the simulator, and can range from
 	// 1 to 64.
 	/////////////////////////////////////////////////////////////////////
-	uint64_t GBM;
+	//uint64_t GBM;  //TODO: no longer need
 
 
 	/////////////////////////////////////////////////////////////////////
@@ -185,14 +231,14 @@ private:
 	// 2. checkpointed Free List head pointer and its phase bit
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
-    typedef struct branch_checkpoint{
-        vector<uint64_t> RMT_copy;             //uint64_t rmt_copy[RMT_SIZE]
-        uint64_t fl_head_copy;
-        uint64_t fl_head_pb_copy;
-        uint64_t GBM_copy;
-    }branch_checkpoint_t;
+    //typedef struct branch_checkpoint{
+    //    vector<uint64_t> RMT_copy;             //uint64_t rmt_copy[RMT_SIZE]
+    //    uint64_t fl_head_copy;
+    //    uint64_t fl_head_pb_copy;
+    //    uint64_t GBM_copy;
+    //}branch_checkpoint_t;  //TODO: no longer need
 
-    vector<branch_checkpoint> BCs;
+    //vector<branch_checkpoint> BCs;  //TODO: no longer need
 
 	/////////////////////////////////////////////////////////////////////
 	// Private functions.
