@@ -117,7 +117,12 @@ uint64_t renamer::rename_rsrc(uint64_t log_reg)
 {
     //printf("rename_rsrc()\n");
 
-    return RMT[log_reg];
+    uint64_t phys_reg = RMT[log_reg];
+
+    PRFUnnmappedBits[phys_reg] = true;
+    PRFUsageCounter[phys_reg]++; 
+
+    return phys_reg;
 }
 
 uint64_t renamer::rename_rdst(uint64_t log_reg)
@@ -196,6 +201,7 @@ uint64_t renamer::get_checkpoint_ID(bool load, bool store,
 {
     //printf("get_checkpoint_ID() - %016lx\n", GBM);
 
+    //need prior checkpoint because CPBuff.tail points to next free entry
     uint64_t prior_chkpt;
 
     if (CPBuffer.tail == 0){
@@ -219,12 +225,7 @@ uint64_t renamer::get_checkpoint_ID(bool load, bool store,
         CPBuffer.CPBuffEntries[prior_chkpt].has_csr_instr = true;
     }
 
-
     CPBuffer.CPBuffEntries[prior_chkpt].uncompleted_instr_count++;
-
-    //if(actual->a_exception){
-    //    CPBuffer.CPBuffEntries[prior_chkpt].has_except_instr = true;
-    //}
 
     return prior_chkpt;
 }
@@ -365,11 +366,11 @@ void renamer::write(uint64_t phys_reg, uint64_t value)
     PRF[phys_reg] = value;
 }
 
-void renamer::set_complete(uint64_t AL_index)
+void renamer::set_complete(uint64_t checkpoint_ID)
 {
     //printf("set_complete()\n");
 
-    AL.AL_entries[AL_index].is_completed = true;
+    CPBuffer.CPBuffEntries[checkpoint_ID].uncompleted_instr_count--;
 }
 
 void renamer::resolve(uint64_t AL_index,
@@ -522,11 +523,11 @@ void renamer::squash()
     }
 }
 
-void renamer::set_exception(uint64_t AL_index)
+void renamer::set_exception(uint64_t checkpoint_ID)
 {
     //printf("set_exception()\n");
 
-    AL.AL_entries[AL_index].is_exception = true;
+    CPBuffer.CPBuffEntries[checkpoint_ID].has_except_instr = true;
 }
 
 void renamer::set_load_violation(uint64_t AL_index)

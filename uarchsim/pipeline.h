@@ -406,7 +406,7 @@ public:
 	void writeback(unsigned int lane_number);
 	void retire(size_t& instret);
 	void load_replay();
-	void set_exception(unsigned int al_index);
+	void set_exception(unsigned int chckpnt_ID);
 	void set_load_violation(unsigned int al_index);
 	void set_branch_misprediction(unsigned int al_index);
 	void set_value_misprediction(unsigned int al_index);

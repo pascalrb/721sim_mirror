@@ -201,6 +201,10 @@ void pipeline_t::rename2() {
                                  IS_STORE(PAY.buf[index].flags), IS_BRANCH(PAY.buf[index].flags), 
                                  IS_AMO(PAY.buf[index].flags), IS_CSR(PAY.buf[index].flags));
 
+         if(actual->a_exception){
+            REN->set_exception(PAY.buf[index].checkpoint_ID);
+         }
+
          if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
                || actual->a_next_pc != PAY.buf[index].next_pc
                || instr_renamed_since_last_chekpoint == max_instr_bw_checkpoints){

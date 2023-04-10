@@ -112,13 +112,13 @@ void pipeline_t::execute(unsigned int lane_number) {
          }
          // Catch exceptions thrown by the ALU.
          catch (trap_t& t){
-            unsigned int al_index = PAY.buf[index].AL_index;
+            unsigned int chckpnt_ID = PAY.buf[index].checkpoint_ID;
             reg_t epc = PAY.buf[index].pc;
-            ifprintf(logging_on,execute_log, "Cycle %" PRIcycle ": core %3d: exception refernce thrown from unknown source %s, epc 0x%016" PRIx64 " al_index %u\n", cycle, id, t.name(), epc, al_index);
+            ifprintf(logging_on,execute_log, "Cycle %" PRIcycle ": core %3d: exception refernce thrown from unknown source %s, epc 0x%016" PRIx64 " chckpnt_ID %u\n", cycle, id, t.name(), epc, chckpnt_ID);
             // Below is the only three traps the ALU could throw
             assert(t.cause() == CAUSE_FP_DISABLED || t.cause() == CAUSE_ILLEGAL_INSTRUCTION || t.cause() == CAUSE_PRIVILEGED_INSTRUCTION);
             PAY.buf[index].trap.post(t);
-            REN->set_exception(al_index);
+            REN->set_exception(chckpnt_ID);
          }
 
          // FIX_ME #14
@@ -267,7 +267,7 @@ void pipeline_t::load_replay() {
       // 2. Set the completed bit for this instruction in the Active List.
 
       // FIX_ME #18b BEGIN
-      REN->set_complete(PAY.buf[index].AL_index);
+      REN->set_complete(PAY.buf[index].checkpoint_ID);
       // FIX_ME #18b END
    }
 }

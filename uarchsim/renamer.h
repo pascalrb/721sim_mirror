@@ -481,9 +481,9 @@ public:
 	void write(uint64_t phys_reg, uint64_t value);
 
 	/////////////////////////////////////////////////////////////////////
-	// Set the completed bit of the indicated entry in the Active List.
+	// Decrement the uncompleted_instr counter in the corresponding checkpoint
 	/////////////////////////////////////////////////////////////////////
-	void set_complete(uint64_t AL_index);
+	void set_complete(uint64_t checkpoint_ID);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function is for handling branch resolution.
@@ -615,7 +615,7 @@ public:
 	// load violation bit, branch misprediction bit, and
 	// value misprediction bit, of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
-	void set_exception(uint64_t AL_index);
+	void set_exception(uint64_t chckpnt_ID);
 	void set_load_violation(uint64_t AL_index);
 	void set_branch_misprediction(uint64_t AL_index);
 	void set_value_misprediction(uint64_t AL_index);
