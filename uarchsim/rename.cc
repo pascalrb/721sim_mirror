@@ -50,7 +50,8 @@ void pipeline_t::rename1() {
 void pipeline_t::rename2() {
    unsigned int i;
    unsigned int index;
-   unsigned int bundle_dst, bundle_branch;
+   unsigned int bundle_dst, bundle_chkpts;
+   db_t * actual;
 
    // Stall the rename2 sub-stage if either:
    // (1) There isn't a current rename bundle.
@@ -64,7 +65,7 @@ void pipeline_t::rename2() {
 
    // Third stall condition: There aren't enough rename resources for the current rename bundle.
    bundle_dst = 0;
-   bundle_branch = 0;
+   bundle_chkpts = 0;
    for (i = 0; i < dispatch_width; i++) {
       if (!RENAME2[i].valid)
          break;			// Not a valid instruction: Reached the end of the rename bundle so exit loop.
@@ -86,14 +87,39 @@ void pipeline_t::rename2() {
       //    Another field indicates whether or not the instruction has a destination register.
 
       // FIX_ME #1 BEGIN
-      if(PAY.buf[index].checkpoint){
-         bundle_branch++;
+      if(PAY.buf[index].checkpoint){ //TODO: may no longer need 
+         //bundle_branch++;
       }
       if(PAY.buf[index].C_valid){
          bundle_dst++;
       }
       // FIX_ME #1 END
+
+      if ((instr_renamed_since_last_chekpoint + bundle_dst) == max_instr_bw_checkpoints){
+         //TODO: might reach max and then, below, same instr is an exception; will waste a checkpoint 
+         //       or might cause unnecessary stall_checkpoints 
+         bundle_chkpts++;
+      }
+
+      //CPR support
+      if(PAY.buf[index].good_instruction){
+         actual = get_pipe()->peek(PAY.buf[index].db_index);
+
+         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
+            //TODO: might need to move this out of "cheating" good_instruction path
+            bundle_chkpts += 2;
+
+         }else if(actual->a_exception){      
+            bundle_chkpts++;
+
+         }else if(actual->a_next_pc != PAY.buf[index].next_pc){      // branch misprediction
+            bundle_chkpts++;
+         }
+
+         //TODO: low confidence branch
+      }
    }
+
 
    // FIX_ME #2
    // Check if the Rename2 Stage must stall due to any of the following conditions:
@@ -106,7 +132,10 @@ void pipeline_t::rename2() {
    // This is achieved by doing nothing and proceeding to the next statements.
 
    // FIX_ME #2 BEGIN
-   if(REN->stall_branch(bundle_branch)){
+   //if(REN->stall_branch(bundle_branch)){
+   //   return;
+   //}
+   if(REN->stall_checkpoint(bundle_chkpts)){
       return;
    }
    if(REN->stall_reg(bundle_dst)){
@@ -136,20 +165,51 @@ void pipeline_t::rename2() {
       // 3. When you rename a logical register to a physical register, remember to *update* the instruction's payload with the physical register specifier,
       //    so that the physical register specifier can be used in subsequent pipeline stages.
 
-      // FIX_ME #3 BEGIN
-      if(PAY.buf[index].A_valid){
-         PAY.buf[index].A_phys_reg = REN->rename_rsrc(PAY.buf[index].A_log_reg);
+
+
+      //CPR Support
+      if(PAY.buf[index].good_instruction){
+         actual = get_pipe()->peek(PAY.buf[index].db_index);
+
+         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
+               || actual->a_exception){
+            //TODO: might need to move this out of "cheating" good_instruction path
+            //       bc instruction may not be renamed speculatively
+
+            REN->checkpoint();
+            instr_renamed_since_last_chekpoint = 0;  
+         }
+
+         // FIX_ME #3 BEGIN
+         if(PAY.buf[index].A_valid){
+            PAY.buf[index].A_phys_reg = REN->rename_rsrc(PAY.buf[index].A_log_reg);
+         }
+         if(PAY.buf[index].B_valid){
+            PAY.buf[index].B_phys_reg = REN->rename_rsrc(PAY.buf[index].B_log_reg);
+         }
+         if(PAY.buf[index].D_valid){
+            PAY.buf[index].D_phys_reg = REN->rename_rsrc(PAY.buf[index].D_log_reg);
+         }
+         if(PAY.buf[index].C_valid){
+            PAY.buf[index].C_phys_reg = REN->rename_rdst(PAY.buf[index].C_log_reg);
+         }
+         // FIX_ME #3 END
+
+         instr_renamed_since_last_chekpoint++;
+
+         PAY.buf[index].checkpoint_ID = REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags), 
+                                 IS_STORE(PAY.buf[index].flags), IS_BRANCH(PAY.buf[index].flags), 
+                                 IS_AMO(PAY.buf[index].flags), IS_CSR(PAY.buf[index].flags));
+
+         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
+               || actual->a_next_pc != PAY.buf[index].next_pc
+               || instr_renamed_since_last_chekpoint == max_instr_bw_checkpoints){
+
+            REN->checkpoint();
+            instr_renamed_since_last_chekpoint = 0;  
+         }
+         //TODO: low confidence branch
       }
-      if(PAY.buf[index].B_valid){
-         PAY.buf[index].B_phys_reg = REN->rename_rsrc(PAY.buf[index].B_log_reg);
-      }
-      if(PAY.buf[index].D_valid){
-         PAY.buf[index].D_phys_reg = REN->rename_rsrc(PAY.buf[index].D_log_reg);
-      }
-      if(PAY.buf[index].C_valid){
-         PAY.buf[index].C_phys_reg = REN->rename_rdst(PAY.buf[index].C_log_reg);
-      }
-      // FIX_ME #3 END
 
       // FIX_ME #4
       // Get the instruction's branch mask.
@@ -163,23 +223,26 @@ void pipeline_t::rename2() {
       //    RENAME2[i].branch_mask = ??;
 
       // FIX_ME #4 BEGIN
-      RENAME2[i].branch_mask = REN->get_branch_mask();
+      //RENAME2[i].branch_mask = REN->get_branch_mask();
+      //TODO: may no longer need; delete member from structure!
       // FIX_ME #4 END
+      
 
-      // FIX_ME #5
-      // If this instruction requires a checkpoint (most branches), then create a checkpoint.
-      //
-      // Tips:
-      // 1. At this point of the code, 'index' is the instruction's index into PAY.buf[] (payload).
-      // 2. There is a flag in the instruction's payload that *directly* tells you if this instruction needs a checkpoint.
-      // 3. If you create a checkpoint, remember to *update* the instruction's payload with its branch ID
-      //    so that the branch ID can be used in subsequent pipeline stages.
-
-      // FIX_ME #5 BEGIN
-      if(PAY.buf[index].checkpoint){
-         PAY.buf[index].branch_ID = REN->checkpoint();
-      }
-      // FIX_ME #5 END
+//      // FIX_ME #5
+//      // If this instruction requires a checkpoint (most branches), then create a checkpoint.
+//      //
+//      // Tips:
+//      // 1. At this point of the code, 'index' is the instruction's index into PAY.buf[] (payload).
+//      // 2. There is a flag in the instruction's payload that *directly* tells you if this instruction needs a checkpoint.
+//      // 3. If you create a checkpoint, remember to *update* the instruction's payload with its branch ID
+//      //    so that the branch ID can be used in subsequent pipeline stages.
+//
+//      // FIX_ME #5 BEGIN
+//      if(PAY.buf[index].checkpoint){
+//         PAY.buf[index].branch_ID = REN->checkpoint();
+//         //TODO: may need to delete 
+//      }
+//      // FIX_ME #5 END
    }
 
    //

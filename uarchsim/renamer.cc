@@ -59,19 +59,23 @@ renamer::renamer(uint64_t n_log_regs,
     }
 
     // Initialize first "oldest" checkpoint buffer
-    CPBuffer.head = 0;                                    //TODO: may not need since Phys Reg reclammation is OoO
+    CPBuffer.head = 0;                                   
     CPBuffer.tail = 0;
     CPBuffer.head_pb = false;     // 0 ]___\ empty
     CPBuffer.tail_pb = false;     // 0 ]   /
     CPBuffer.CPBuffEntries.resize(n_branches);
 
-    CPBuffer.CPBuffEntries[0].RMT_copy                  = RMT;
-    CPBuffer.CPBuffEntries[0].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
-    CPBuffer.CPBuffEntries[0].PRFUsageCounter_copy      = PRFUsageCounter;
-    CPBuffer.CPBuffEntries[0].uncompleted_instr_count   = 0;
-    CPBuffer.CPBuffEntries[0].load_count                = 0;
-    CPBuffer.CPBuffEntries[0].store_count               = 0;
-    CPBuffer.CPBuffEntries[0].branch_count              = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy                  = RMT;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].uncompleted_instr_count   = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].load_count                = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].store_count               = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].branch_count              = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_amo_instr             = false;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_csr_instr             = false;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_except_instr          = false;
+    CPBuffer.tail++; 
 
 
     //printf("    AMT: %lu, RMT: %lu, AL: %lu, FL: %lu, BCs: %lu\n", AMT.size(), RMT.size(), AL.AL_entries.size(), FL.fl_regs.size(), BCs.size());
@@ -108,32 +112,6 @@ bool renamer::stall_reg(uint64_t bundle_dst)
     }
 }
 
-bool renamer::stall_branch(uint64_t bundle_branch)
-{
-    //printf("stall_branch()\n");
-
-    uint64_t BCs_unset_count = 0;
-
-    for(uint64_t i=0; i<UNRESOLVED_BRANCHES_SIZE; i++){
-        if((GBM & (1ULL<<i)) == 0){
-            BCs_unset_count++;
-        }
-    }
-
-    if(BCs_unset_count >= bundle_branch){
-        return false;
-    }else{
-        return true;
-    }
-
-}
-
-uint64_t renamer::get_branch_mask()
-{
-    //printf("get_branch_mask() - %016lx\n", GBM);
-
-    return GBM;
-}
 
 uint64_t renamer::rename_rsrc(uint64_t log_reg)
 {
@@ -162,47 +140,19 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
     return phys_reg;
 }
 
-uint64_t renamer::checkpoint()
+bool renamer::stall_checkpoint(uint64_t bundle_chkpts)
 {
-    //printf("checkpoint()\n");
-
-    int64_t branch_id = -1;
-
-    //find a free bit in GBM
-    for(uint64_t i=0; i<UNRESOLVED_BRANCHES_SIZE; i++){
-        if((GBM & (1ULL<<i)) == 0){
-            branch_id = i;
-            break;
-        }
-    }
-    assert(branch_id != -1);
-
-    //setting bit in GBM
-    GBM |= (1ULL<<branch_id);
-
-    BCs[branch_id].RMT_copy = RMT;
-    BCs[branch_id].fl_head_copy = FL.head;
-    BCs[branch_id].fl_head_pb_copy = FL.head_pb;
-    BCs[branch_id].GBM_copy = GBM;
-    
-    return branch_id;
-}
-
-bool renamer::stall_dispatch(uint64_t bundle_inst)
-{
-    //printf("stall_dispatch()\n");
-
-    if(AL.head == AL.tail && AL.head_pb != AL.tail_pb){  //full
+    if(CPBuffer.head == CPBuffer.tail && CPBuffer.head_pb != CPBuffer.tail_pb){  //full
         return true;
     }else{
-        if(AL.head_pb == AL.tail_pb){
-           if((AL_SIZE - (AL.tail - AL.head)) >= bundle_inst){
+        if(CPBuffer.head_pb == CPBuffer.tail_pb){
+           if((UNRESOLVED_BRANCHES_SIZE - (CPBuffer.tail - CPBuffer.head)) >= bundle_chkpts){
                return false;
            }else{
                return true;
            }
         }else{
-           if((AL.head - AL.tail) >= bundle_inst){
+           if((CPBuffer.head - CPBuffer.tail) >= bundle_chkpts){
                return false;
            }else{
                return true;
@@ -210,6 +160,132 @@ bool renamer::stall_dispatch(uint64_t bundle_inst)
         }
     }
 }
+
+
+//TODO: no longer need
+//bool renamer::stall_branch(uint64_t bundle_branch)
+//{
+//    //printf("stall_branch()\n");
+//
+//    uint64_t BCs_unset_count = 0;
+//
+//    for(uint64_t i=0; i<UNRESOLVED_BRANCHES_SIZE; i++){
+//        if((GBM & (1ULL<<i)) == 0){
+//            BCs_unset_count++;
+//        }
+//    }
+//
+//    if(BCs_unset_count >= bundle_branch){
+//        return false;
+//    }else{
+//        return true;
+//    }
+//}
+
+//TODO: need modified or no longer need
+//uint64_t renamer::get_branch_mask()  
+//{
+//    //printf("get_branch_mask() - %016lx\n", GBM);
+//
+//    return GBM;
+//}
+
+uint64_t renamer::get_checkpoint_ID(bool load, bool store, 
+                                    bool branch, bool amo, 
+                                    bool csr)  
+{
+    //printf("get_checkpoint_ID() - %016lx\n", GBM);
+
+    uint64_t prior_chkpt;
+
+    if (CPBuffer.tail == 0){
+        prior_chkpt = UNRESOLVED_BRANCHES_SIZE - 1;
+    }else{
+        prior_chkpt = CPBuffer.tail - 1;
+    }
+
+    if(load){
+        CPBuffer.CPBuffEntries[prior_chkpt].load_count++;
+    }else if(store){
+        CPBuffer.CPBuffEntries[prior_chkpt].store_count++;
+    }else if(branch){
+        CPBuffer.CPBuffEntries[prior_chkpt].branch_count++;
+    }
+
+    if(amo){
+        CPBuffer.CPBuffEntries[prior_chkpt].has_amo_instr = true;
+    }
+    if(csr){
+        CPBuffer.CPBuffEntries[prior_chkpt].has_csr_instr = true;
+    }
+
+
+    CPBuffer.CPBuffEntries[prior_chkpt].uncompleted_instr_count++;
+
+    //if(actual->a_exception){
+    //    CPBuffer.CPBuffEntries[prior_chkpt].has_except_instr = true;
+    //}
+
+    return prior_chkpt;
+}
+
+void renamer::checkpoint()
+{
+    //printf("checkpoint()\n");
+
+    // sanity check; should never be empty because there 
+    // should always be an "oldest checkpoint" at all times
+    assert(!(CPBuffer.head == CPBuffer.tail && CPBuffer.head_pb == CPBuffer.tail_pb));
+
+    // should not be called when full; stall_checkpoint should catch that
+    assert(!(CPBuffer.head == CPBuffer.tail && CPBuffer.head_pb != CPBuffer.tail_pb));
+
+    CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy                  = RMT;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
+    //increment usage counter of each Phys Reg in checkpointed RMT
+    for(int i=0; i<RMT.size(); i++){
+        CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy[RMT[i]]++;
+    }
+    CPBuffer.CPBuffEntries[CPBuffer.tail].uncompleted_instr_count   = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].load_count                = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].store_count               = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].branch_count              = 0;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_amo_instr             = false;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_csr_instr             = false;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].has_except_instr          = false;
+
+    if (CPBuffer.tail == UNRESOLVED_BRANCHES_SIZE-1){
+        CPBuffer.tail = 0;
+        CPBuffer.tail_pb = !CPBuffer.tail_pb;
+    }else{
+        CPBuffer.tail++;
+    }
+
+}
+
+//bool renamer::stall_dispatch(uint64_t bundle_inst)
+//{
+//    //printf("stall_dispatch()\n");
+//
+//    if(AL.head == AL.tail && AL.head_pb != AL.tail_pb){  //full
+//        return true;
+//    }else{
+//        if(AL.head_pb == AL.tail_pb){
+//           if((AL_SIZE - (AL.tail - AL.head)) >= bundle_inst){
+//               return false;
+//           }else{
+//               return true;
+//           }
+//        }else{
+//           if((AL.head - AL.tail) >= bundle_inst){
+//               return false;
+//           }else{
+//               return true;
+//           }
+//        }
+//    }
+//}
 
 uint64_t renamer::dispatch_inst(bool dest_valid,
                                 uint64_t log_reg,

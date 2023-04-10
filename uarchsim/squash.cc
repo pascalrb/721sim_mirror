@@ -39,6 +39,7 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 
 	// FIX_ME #17c BEGIN
 	REN->squash();
+    //instr_renamed_since_last_chekpoint = 0;  //TODO:
 	// FIX_ME #17c END
 
 

@@ -180,10 +180,16 @@ typedef struct {
                                 // this is the physical register specifier to
                                 // which it is renamed.
   
-   // Branch ID, for checkpointed branches only.
-   unsigned int branch_ID;      // When a checkpoint is created for a branch,
-                                // this is the branch's ID (its bit position
-                                // in the Global Branch Mask).
+//   // Branch ID, for checkpointed branches only.
+//   unsigned int branch_ID;      // When a checkpoint is created for a branch,
+//                                // this is the branch's ID (its bit position
+//                                // in the Global Branch Mask).
+//TODO: CPR no longer need 
+
+   // CPR Checkpoint ID, for checkpoint.
+   unsigned int checkpoint_ID;  // When a checkpoint is created for,
+                                // this is index into the checkpoint buffer 
+                                // representing the nearest prior checkpoint. 
 
    ////////////////////////
    // Set by Dispatch Stage.

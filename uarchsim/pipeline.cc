@@ -93,6 +93,10 @@ pipeline_t::pipeline_t(
   num_insn = 0;
   num_insn_split = 0;
 
+  //CPR support
+  max_instr_bw_checkpoints            = rob_size / num_chkpts;
+  instr_renamed_since_last_chekpoint  = 0;
+
 
   /////////////////////////////////////////////////////////////
   // Pipeline widths.

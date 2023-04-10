@@ -10,13 +10,15 @@ private:
 	/////////////////////////////////////////////////////////////////////
 	// Put private class variables here.
 	/////////////////////////////////////////////////////////////////////
+    uint64_t debug_cnt;
+
     uint64_t LOGREG_RMT_AMT_SIZE;           // Number of entries in Logical Registers, 
                                                 // Rename Map Table, Architectural Map Table
     uint64_t PHYS_REG_SIZE;                 // Number of entries in Physical Registers 
     uint64_t UNRESOLVED_BRANCHES_SIZE;      // Number of entries in Branch Checkpoint vector
-    uint64_t AL_SIZE;                       // Number of entries in Active List
+    //uint64_t AL_SIZE;                       // Number of entries in Active List
     uint64_t FL_SIZE;                       // Number of entries in Free List
-    uint64_t debug_cnt;
+
 
     // log_regs: 64, phys_regs: 320, AL_Size: 256
 
@@ -24,6 +26,8 @@ private:
 
 	//TODO: review all the TODOs in renamer.h and renamer.cc
 	//TODO: order the "Structure X:"
+	//TODO: update comments in rename.cc, renamer.cc, renamer.h
+	//						squash.cc, pipeline.h, pipeline.cc, etc
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 1: Rename Map Table
@@ -45,6 +49,9 @@ private:
 		uint64_t load_count;
 		uint64_t store_count;
 		uint64_t branch_count;
+		bool has_amo_instr;
+		bool has_csr_instr;
+		bool has_except_instr;
 	}CPBuff_entry_t;
 
 	typedef struct CPBuffer{
@@ -313,12 +320,28 @@ public:
 	// Return "true" (stall) if there aren't enough free checkpoints
 	// for all branches in the current rename bundle.
 	/////////////////////////////////////////////////////////////////////
-	bool stall_branch(uint64_t bundle_branch);
+	//bool stall_branch(uint64_t bundle_branch); //TODO: no longer need
+
+	/////////////////////////////////////////////////////////////////////
+	// The Rename Stage must stall if there aren't enough 
+	// checkpoints for offending instr in the current rename bundle.
+	//
+	// Inputs:
+	// 1. bundle_chkpts: number of offending instr in current rename bundle
+	//
+	// Return value:
+	// Return "true" (stall) if there aren't enough free checkpoints
+	/////////////////////////////////////////////////////////////////////
+	bool stall_checkpoint(uint64_t bundle_chkpts);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to get the branch mask for an instruction.
 	/////////////////////////////////////////////////////////////////////
-	uint64_t get_branch_mask();
+	//uint64_t get_branch_mask(); TODO: 
+
+	uint64_t get_checkpoint_ID(bool load, bool store, 
+                               bool branch, bool amo, 
+							   bool csr);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to rename a single source register.
@@ -345,10 +368,6 @@ public:
 	//
 	// Inputs: none.
 	//
-	// Output:
-	// 1. The function returns the branch's ID. When the branch resolves,
-	//    its ID is passed back to the renamer via "resolve()" below.
-	//
 	// Tips:
 	//
 	// Allocating resources for the branch (a GBM bit and a checkpoint):
@@ -364,7 +383,8 @@ public:
 	// 2. checkpointed Free List head pointer and its phase bit
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
-	uint64_t checkpoint();
+	//TODO: update comment
+	void checkpoint();
 
 	//////////////////////////////////////////
 	// Functions related to Dispatch Stage. //
@@ -382,7 +402,7 @@ public:
 	// Return "true" (stall) if the Active List does not have enough
 	// space for all instructions in the dispatch bundle.
 	/////////////////////////////////////////////////////////////////////
-	bool stall_dispatch(uint64_t bundle_inst);
+	//bool stall_dispatch(uint64_t bundle_inst);  //TODO: no longer need
 
 	/////////////////////////////////////////////////////////////////////
 	// This function dispatches a single instruction into the Active
