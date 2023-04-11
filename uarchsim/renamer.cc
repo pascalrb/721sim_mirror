@@ -49,7 +49,7 @@ renamer::renamer(uint64_t n_log_regs,
     }
     
     // Free List init
-    FL.head = 0;                                    //TODO: may not need since Phys Reg reclammation is OoO
+    FL.head = 0;                                 
     FL.tail = 0;
     FL.head_pb = false;     // 0 ]___\ full
     FL.tail_pb = true;      // 1 ]   /
@@ -119,7 +119,7 @@ uint64_t renamer::rename_rsrc(uint64_t log_reg)
 
     uint64_t phys_reg = RMT[log_reg];
 
-    PRFUnnmappedBits[phys_reg] = true;
+    //Update usage counter corresponding to the phys reg
     PRFUsageCounter[phys_reg]++; 
 
     return phys_reg;
@@ -130,6 +130,10 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
     //printf("rename_rdst()\n");
 
     uint64_t phys_reg = FL.fl_regs[FL.head];
+
+    //Update usage counter corresponding to the phys reg
+    PRFUnnmappedBits[phys_reg] = false;
+    PRFUsageCounter[phys_reg]++; 
 
     //update RMT
     RMT[log_reg] = phys_reg;
@@ -423,104 +427,94 @@ void renamer::resolve(uint64_t AL_index,
     }
 }
 
-bool renamer::precommit(bool &completed,
-                        bool &exception, bool &load_viol, bool &br_misp, bool &val_misp,
-                        bool &load, bool &store, bool &branch, bool &amo, bool &csr,
-	                    uint64_t &PC)
+bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores,
+                        uint64_t &num_branches, bool &amo, bool &csr, bool &exception)
 {
     //printf("precommit(): \n");
-    //printf("    AL.head: %lu,%-10d FL.head: %lu,%d\n", AL.head, AL.head_pb, FL.head, FL.head_pb);
-    //printf("    AL.tail: %lu,%-10d FL.tail: %lu,%d\n", AL.tail, AL.tail_pb, FL.tail, FL.tail_pb);
-    //cout <<"    AL.head: "<< AL.head<<", "<< AL.head_pb<<"    FL.head: "<< FL.head<<", "<< FL.head_pb<<endl;
-    //cout <<"    AL.tail: "<< AL.tail<<", "<< AL.tail_pb<<"    FL.tail: "<< FL.tail<<", "<< FL.tail_pb<<endl;
-    //debug_cnt++;
-    //if(debug_cnt == 1000){
-    //    assert(0 == 1);
-    //}
 
-    if(AL.head == AL.tail && AL.head_pb == AL.tail_pb){
-        //AL is empty
-        //printf("    %d\n", false);
-        return false;
-    }else{
-        //return instr at head of AL
-        completed   = AL.AL_entries[AL.head].is_completed;
-        exception   = AL.AL_entries[AL.head].is_exception; 
-        load_viol   = AL.AL_entries[AL.head].is_load_violated;
-        br_misp     = AL.AL_entries[AL.head].is_branch_mispredicted;
-        val_misp    = AL.AL_entries[AL.head].is_value_mispredicted;
-        load        = AL.AL_entries[AL.head].is_load_instr;
-        store       = AL.AL_entries[AL.head].is_store_instr;
-        branch      = AL.AL_entries[AL.head].is_branch_instr;
-        amo         = AL.AL_entries[AL.head].is_amo_instr;
-        csr         = AL.AL_entries[AL.head].is_csr_instr;
-        PC          = AL.AL_entries[AL.head].PC;
-
-        //printf("    %d\n", true);
-        return true;
+    if (CPBuffer.head < UNRESOLVED_BRANCHES_SIZE-2){
+        if(CPBuffer.head + 1 == CPBuffer.tail){
+            //there is no other checkpoint after oldest checkpoint
+            return false;
+        }
+    }else{ //next entry after head is back to 0
+        if(CPBuffer.tail == 0){
+            //there is no other checkpoint after oldest checkpoint
+            return false;
+        }
     }
 
+    if(CPBuffer.CPBuffEntries[CPBuffer.head].uncompleted_instr_count > 0){
+        return false;
+    }
+
+    chkpt_id        = CPBuffer.head;
+    num_loads       = CPBuffer.CPBuffEntries[CPBuffer.head].load_count;
+    num_stores      = CPBuffer.CPBuffEntries[CPBuffer.head].store_count;
+    num_branches    = CPBuffer.CPBuffEntries[CPBuffer.head].branch_count;
+    amo             = CPBuffer.CPBuffEntries[CPBuffer.head].has_amo_instr;
+    csr             = CPBuffer.CPBuffEntries[CPBuffer.head].has_csr_instr;
+    exception       = CPBuffer.CPBuffEntries[CPBuffer.head].has_except_instr;
+
+    //printf("    %d\n", true);
+    return true;
 }
 
-void renamer::commit()
+void renamer::commit(uint64_t log_reg)
 {
     //printf("commit()\n");
 
-    assert( !(AL.head == AL.tail && AL.head_pb == AL.tail_pb) );
-    assert( AL.AL_entries[AL.head].is_completed );
-    assert( !(AL.AL_entries[AL.head].is_exception) );
-    assert( !(AL.AL_entries[AL.head].is_load_violated) );
+    assert(CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy[RMT[log_reg]] > 0);
 
-    if(AL.AL_entries[AL.head].has_dest_reg){
-        //pushing into FL (freeing previous AMT phys reg mapping)
-        FL.fl_regs[FL.tail] = AMT[AL.AL_entries[AL.head].dest_log_reg];
-        if (FL.tail == FL_SIZE-1){
-            FL.tail = 0;
-            FL.tail_pb = !FL.tail_pb;
-        }else{
-            FL.tail++;
-        }
+    CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy[RMT[log_reg]]--;
+}
 
-        //commit phys reg into the AMT
-        AMT[AL.AL_entries[AL.head].dest_log_reg] = AL.AL_entries[AL.head].dest_phys_reg;
-    }
-
-    //increment AL.head 
-    if (AL.head == AL_SIZE-1){
-        AL.head = 0;
-        AL.head_pb = !AL.head_pb;
+void renamer::free_checkpoint()
+{
+    if (CPBuffer.head == UNRESOLVED_BRANCHES_SIZE-1){
+        CPBuffer.head = 0;
+        CPBuffer.head_pb = !CPBuffer.head_pb;
     }else{
-        AL.head++;
+        CPBuffer.head++;
     }
-
 }
 
 void renamer::squash()
 {
     //printf("squash()\n");
 
+    //TODO: why restoring from the oldest? and not from a specific chkpt
     //restoring RMT
-    RMT = AMT;
+    RMT = CPBuffer.CPBuffEntries[CPBuffer.head].RMT_copy;
+    PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy;
+
+    //PRFUsageCounter = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy;
+    //TODO: renitialize??
+    //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
+    //    PRFUsageCounter[i] = 0;
+    //}
+
+    //FL.head = 0;                                 
+    //FL.tail = 0;
+    //FL.head_pb = false;     // 0 ]___\ full
+    //FL.tail_pb = true;      // 1 ]   /
+    //// intially the remainder of Phys Regs are free (n_phys_regs (allocated in RMT&AMT) - n_log_regs)
+    //for(uint64_t i=LOGREG_RMT_AMT_SIZE; i<PHYS_REG_SIZE; i++){
+    //    FL.fl_regs.push_back(i); 
+    //}
+
+
 
     //restoring FL to full
-    FL.head = FL.tail;
-    FL.head_pb = !FL.tail_pb;
+//    FL.head = FL.tail;
+//    FL.head_pb = !FL.tail_pb;
 
-    //restoring AL to empty
-    AL.tail = AL.head;
-    AL.tail_pb = AL.head_pb;
+//    for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
+//        //update PRF ready bit to indicate that phys_reg is ready to be picked up
+//        PRF_rb[i] = true;
+//    }
+// TODO: may no longer need
 
-
-    for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
-        //update PRF ready bit to indicate that phys_reg is ready to be picked up
-        PRF_rb[i] = true;
-    }
-
-
-    GBM = 0;
-    for(uint64_t i=0; i<UNRESOLVED_BRANCHES_SIZE; i++){
-        BCs[i].GBM_copy = 0;
-    }
 }
 
 void renamer::set_exception(uint64_t checkpoint_ID)

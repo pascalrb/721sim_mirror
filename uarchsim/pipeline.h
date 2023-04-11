@@ -260,6 +260,30 @@ private:
 	// Timing simulator stuff below
 
 private:
+	//CPR Support
+	typedef enum {
+		RETIRE_IDLE, 
+		RETIRE_BULK_COMMIT, 
+		RETIRE_FINALIZE
+	}retire_state_e;
+
+	typedef struct{
+		retire_state_e state;
+		// The following seven variables should be passed by reference to 
+		// the corresponding arguments of the new renamer::precommit()
+		// function.
+		uint64_t chkpt_id;
+		uint64_t num_loads_left, num_stores_left, num_branches_left;
+		bool amo, csr, exception;
+		// Keep track of the next logical register to process in the 
+		// oldest checkpoint.
+		uint64_t log_reg;
+	}retire_state_t;
+
+	// This is the aggregated retirement state variable.
+	retire_state_t RETSTATE;
+
+
   alu_ops_t alu_ops;
 
   /////////////////////////////////////////////////////////////
@@ -404,7 +428,7 @@ public:
 	void register_read(unsigned int lane_number);
 	void execute(unsigned int lane_number);
 	void writeback(unsigned int lane_number);
-	void retire(size_t& instret);
+	void retire(size_t& instret, size_t instret_limit);
 	void load_replay();
 	void set_exception(unsigned int chckpnt_ID);
 	void set_load_violation(unsigned int al_index);

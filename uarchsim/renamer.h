@@ -386,6 +386,8 @@ public:
 	//TODO: update comment
 	void checkpoint();
 
+	void free_checkpoint();
+
 	//////////////////////////////////////////
 	// Functions related to Dispatch Stage. //
 	//////////////////////////////////////////
@@ -548,10 +550,9 @@ public:
 	// Input arguments: none.
 	//
 	// Return value:
-	// * Return "true" if the Active List is NOT empty, i.e., there
-	//   is an instruction at the head of the Active List.
-	// * Return "false" if the Active List is empty, i.e., there is
-	//   no instruction at the head of the Active List.
+	// * Return "true" if there exists a checkpoint after the oldest checkpoint and
+	// 	 if all instructions between them have completed  
+	// * Return "false" otherwise.
 	//
 	// Output arguments:
 	// Simply return the following contents of the head entry of
@@ -570,10 +571,9 @@ public:
 	// * csr flag (whether or not instr. is a system instruction)
 	// * program counter of the instruction
 	/////////////////////////////////////////////////////////////////////
-    bool precommit(bool &completed,
-                   bool &exception, bool &load_viol, bool &br_misp, bool &val_misp,
-                   bool &load, bool &store, bool &branch, bool &amo, bool &csr,
-                   uint64_t &PC);
+	//TODO: update comment
+	bool precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores,
+                   uint64_t &num_branches, bool &amo, bool &csr, bool &exception);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function commits the instruction at the head of the Active List.
@@ -592,7 +592,8 @@ public:
 	// This is why you should assert() that it is valid to commit the
 	// head instruction and otherwise cause the simulator to exit.
 	/////////////////////////////////////////////////////////////////////
-	void commit();
+	//TODO: update comment
+	void commit(uint64_t log_reg);
 
 	//////////////////////////////////////////////////////////////////////
 	// Squash the renamer class.

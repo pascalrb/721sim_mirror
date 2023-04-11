@@ -3,9 +3,11 @@
 #include "mmu.h"
 
 
-void pipeline_t::retire(size_t& instret) {
+void pipeline_t::retire(size_t& instret, size_t instret_limit) {
    bool head_valid;
-   bool completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr;
+   //bool completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr;
+   //TODO: CPR delete
+   bool load, store;
    reg_t offending_PC;
 
    bool amo_success;
@@ -47,161 +49,329 @@ void pipeline_t::retire(size_t& instret) {
    //      is squashed including the offending instruction.
 
    // FIX_ME #17a BEGIN
-   head_valid = REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr, offending_PC);
+   //head_valid = REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr, offending_PC);
+   //TODO: CPR delete
+   bool proceed = REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, 
+                                 RETSTATE.num_stores_left, RETSTATE.num_branches_left,
+                                 RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
    // FIX_ME #17a END
 
-   if (head_valid && completed) {    // AL head exists and completed
-
-      // Sanity checks of the 'amo' and 'csr' flags.
-      assert(!amo || IS_AMO(PAY.buf[PAY.head].flags));
-      assert(!csr || IS_CSR(PAY.buf[PAY.head].flags));
-
-      // If no exception (yet):
-      // 1. If the instruction is an atomic memory operation (read-modify-write a memory address), execute it now.
-      //    The atomic may raise an exception here.
-      // 2. If the instruction is a csr instruction, execute it now.
-      //    The csr instruction may raise an exception here.
-      if (!exception) {
-	 if (amo && !(load || store)) {	// amo, excluding load-with-reservation (LR) and store-conditional (SC)
-            exception = execute_amo();
+   switch(RETSTATE.state){
+      case RETIRE_IDLE:
+         // Sanity checks of the 'amo' and 'csr' flags. 
+         assert(!RETSTATE.amo || IS_AMO(PAY.buf[PAY.head].flags)); 
+         assert(!RETSTATE.csr || IS_CSR(PAY.buf[PAY.head].flags)); 
+         if (RETSTATE.amo || RETSTATE.csr) {
+            // There should be only 1 instruction – the amo or csr – 
+            // between the oldest and next oldest checkpoint.
+            // So the following assertions should succeed. 
+            assert(RETSTATE.num_loads_left <= 1);
+            assert(RETSTATE.num_stores_left <= 1); 
+            assert(RETSTATE.num_branches_left == 0);
+            // load and store are declared as local variables (bool) 
+            load = (RETSTATE.num_loads_left > 0);
+            store = (RETSTATE.num_stores_left > 0);
          }
-         else if (csr) {
-            exception = execute_csr();
+         if (!RETSTATE.exception) {
+            if (RETSTATE.amo && !(load || store)) { 
+               // amo, excluding load-with-reservation (LR) and store-conditional (SC)
+               RETSTATE.exception = execute_amo();
+            }
+            else if (RETSTATE.csr) {
+               RETSTATE.exception = execute_csr();
+            }
+            // This is probably optional.
+            // Just doing it out of completeness and adapting existing code. 
+            if (RETSTATE.exception)
+               REN->set_exception(RETSTATE.chkpt_id); 
          }
+         //else {   // exception
+         if(RETSTATE.exception){
+            trap = PAY.buf[PAY.head].trap.get();
 
-         if (exception)
-	    REN->set_exception(PAY.buf[PAY.head].checkpoint_ID);
-      }
+            // CSR exceptions are micro-architectural exceptions and are
+            // not defined by the ISA. These must be handled exclusively by
+            // the micro-arch and is different from other exceptions specified
+            // in the ISA.
+            // This is a serialize trap - Refetch the CSR instruction
+            reg_t jump_PC;
+            if (trap->cause() == CAUSE_CSR_INSTRUCTION) {
+               jump_PC = offending_PC;
+            } 
+            else {
+               jump_PC = take_trap(*trap, offending_PC);
+            }
 
-      if (!exception && !load_viol) {
-	      //
-         // FIX_ME #17b
-         // Commit the instruction at the head of the active list.
-         //
+            // Keep track of the number of retired instructions.
+            instret++;
+            num_insn++;	
+            inc_counter(commit_count);
+            inc_counter(exception_count);
 
-         // FIX_ME #17b BEGIN
-         REN->commit();
-         // FIX_ME #17b END
+            // Compare pipeline simulator against functional simulator.
+            checker();
 
-	      // If the committed instruction is a load or store, signal the LSU to commit its oldest load or store, respectively.
-         if (load || store) {
-            assert(load != store);   // Make sure that the same instruction does not have both flags set.
-	        LSU.train(load);	     // Train MDP and update stats.
-            amo_success = LSU.commit(load, amo);
-            assert(amo_success);     // Assert store-conditionals (SC) are successful.
-         }
-
-         // If the committed instruction is a branch, signal the branch predictor to commit its oldest branch.
-         if (branch) {
-	    // TODO (ER): Change the branch predictor interface as follows: FetchUnit->commit().
-            FetchUnit->commit(PAY.buf[PAY.head].pred_tag);
-         }
-
-         if (IS_FP_OP(PAY.buf[PAY.head].flags)) {
-            // post the FP exception bit to CSR fflags (the Accrued Exception Flags)
-            get_state()->fflags |= PAY.buf[PAY.head].fflags;
-         }
-
-	 // Check results.
-	 checker();
-
-	 // Keep track of the number of retired instructions.
-	 num_insn++;
-         instret++;
-	 inc_counter(commit_count);
-	 if (PAY.buf[PAY.head].split && PAY.buf[PAY.head].upper)
-            num_insn_split++;
-
-	 if (amo || csr) {   // Resume the stalled fetch unit after committing a serializing instruction.
-            insn_t inst = PAY.buf[PAY.head].inst;
-	    reg_t next_inst_pc;
-            if ((inst.funct3() == FN3_SC_SB) && (inst.funct12() == FN12_SRET))  // SRET instruction.
-               next_inst_pc = state.epc;
-	    else
-	       next_inst_pc = INCREMENT_PC(PAY.buf[PAY.head].pc);
-
-	    // The serializing instruction stalled the fetch unit so the pipeline is now empty. Resume fetch.
-            FetchUnit->flush(next_inst_pc);
-
-	    // Pop the instruction from PAY.
-	    if (!PAY.buf[PAY.head].split) PAY.pop();
-	    PAY.pop();
-	 }
-	 else if (br_misp || val_misp) {   // Complete-squash the pipeline after committing a mispredicted branch or
-	                                   // a value-mispredicted instruction, if "approach #1 recovery" is configured.
-	    reg_t next_inst_pc;
-	    if (br_misp)
-               next_inst_pc = PAY.buf[PAY.head].c_next_pc;
-	    else
-	       next_inst_pc = INCREMENT_PC(PAY.buf[PAY.head].pc);
-
-            // The head instruction was already committed above (fix #17b).
-	    // Squash all instructions after it.
-            squash_complete(next_inst_pc);
+            // Squash the pipeline.
+            squash_complete(jump_PC);
             inc_counter(recovery_count);
-
-	    // Pop the instruction from PAY.
-	    if (!PAY.buf[PAY.head].split) PAY.pop();
-	    PAY.pop();
 
             // Flush PAY.
             PAY.clear();
-         }
-         else {
-	    // Pop the instruction from PAY.
-	    if (!PAY.buf[PAY.head].split) PAY.pop();
-	    PAY.pop();
-         }
-      }
-      else if (!exception && load_viol) {
-	 // This is a mispredicted load owing to speculative memory disambiguation (not value prediction).
-	 // Therefore the load is incorrect and not committed.
-         assert(load);
 
-	 // Train MDP and update stats.
-	 LSU.train(load);
-
-         // Full squash, including the mispredicted load, and restart fetching from the load.
-         squash_complete(offending_PC);
-         inc_counter(recovery_count);
-         inc_counter(ld_vio_count);
-
-         // Flush PAY.
-         PAY.clear();
-      }
-      else {   // exception
-         trap = PAY.buf[PAY.head].trap.get();
-
-         // CSR exceptions are micro-architectural exceptions and are
-         // not defined by the ISA. These must be handled exclusively by
-         // the micro-arch and is different from other exceptions specified
-         // in the ISA.
-         // This is a serialize trap - Refetch the CSR instruction
-         reg_t jump_PC;
-         if (trap->cause() == CAUSE_CSR_INSTRUCTION) {
-            jump_PC = offending_PC;
-         } 
-         else {
-            jump_PC = take_trap(*trap, offending_PC);
+         }else{
+            RETSTATE.state = RETIRE_BULK_COMMIT;
+            RETSTATE.log_reg = 0;
          }
 
-         // Keep track of the number of retired instructions.
-	 instret++;
-	 num_insn++;	
-         inc_counter(commit_count);
-         inc_counter(exception_count);
+         break;
+      
+      case RETIRE_BULK_COMMIT:
+         int ret_cnt;
+         ret_cnt = 0;
+         while(RETSTATE.num_loads_left > 0 || ret_cnt < RETIRE_WIDTH){
+            LSU.train(true);  
+            amo_success = LSU.commit(true, RETSTATE.amo); 
+            assert(amo_success);     // Assert store-conditionals (SC) are successful.
 
-         // Compare pipeline simulator against functional simulator.
-         checker();
+            RETSTATE.num_loads_left--;
+            ret_cnt++;
+         }
+         ret_cnt = 0;
+         while(RETSTATE.num_stores_left > 0 || ret_cnt < RETIRE_WIDTH){
+            LSU.train(false);  
+            amo_success = LSU.commit(false, RETSTATE.amo); 
+            assert(amo_success);     // Assert store-conditionals (SC) are successful.
 
-         // Squash the pipeline.
-         squash_complete(jump_PC);
-         inc_counter(recovery_count);
+            RETSTATE.num_stores_left--;
+            ret_cnt++;
+         }
+         ret_cnt = 0;
+         while(RETSTATE.num_branches_left > 0 || ret_cnt < RETIRE_WIDTH){
+            FetchUnit->commit();
 
-         // Flush PAY.
-         PAY.clear();
-      }
+            RETSTATE.num_branches_left--;
+            ret_cnt++;
+         }
+         ret_cnt = 0;
+         while(RETSTATE.log_reg < NXPR+NFPR || ret_cnt < RETIRE_WIDTH){
+            REN->commit(RETSTATE.log_reg);
+
+            RETSTATE.log_reg++;
+            ret_cnt++;
+         }
+
+         if(RETSTATE.num_loads_left == 0 && RETSTATE.num_stores_left == 0 &&
+            RETSTATE.num_branches_left == 0 && RETSTATE.log_reg == NXPR+NFPR)
+         {
+            REN->free_checkpoint();
+            RETSTATE.state = RETIRE_FINALIZE;
+         }
+         break;
+
+      case RETIRE_FINALIZE:
+         while(PAY.buf[PAY.head].checkpoint_ID == RETSTATE.chkpt_id && PAY.head != PAY.tail)
+         {
+            if (IS_FP_OP(PAY.buf[PAY.head].flags)) {
+               // post the FP exception bit to CSR fflags (the Accrued Exception Flags)
+               get_state()->fflags |= PAY.buf[PAY.head].fflags;
+            }
+
+            // Check results.
+            checker();
+
+            // Keep track of the number of retired instructions.
+            num_insn++;
+            instret++;
+            inc_counter(commit_count);
+            if (PAY.buf[PAY.head].split && PAY.buf[PAY.head].upper)
+               num_insn_split++;
+
+            if (RETSTATE.amo || RETSTATE.csr) {   // Resume the stalled fetch unit after committing a serializing instruction.
+               insn_t inst = PAY.buf[PAY.head].inst;
+               reg_t next_inst_pc;
+               if ((inst.funct3() == FN3_SC_SB) && (inst.funct12() == FN12_SRET))  // SRET instruction.
+                  next_inst_pc = state.epc;
+               else
+                  next_inst_pc = INCREMENT_PC(PAY.buf[PAY.head].pc);
+
+               // The serializing instruction stalled the fetch unit so the pipeline is now empty. Resume fetch.
+               FetchUnit->flush(next_inst_pc);
+            }
+
+            // Pop the instruction from PAY.
+            if (!PAY.buf[PAY.head].split) PAY.pop();
+            PAY.pop();
+
+            update_timer(&state, 1);   //Update timer by 1 retired instr. 
+            // Pause, but remain in the RETIRE_FINALIZE state for 
+            // the next cycle, if it's time for an HTIF tick,
+            // as this will change state.
+            if(instret == instret_limit)
+               return;
+         }
+
+         RETSTATE.state = RETIRE_IDLE;
+         break;
+
    }
+
+
+
+
+//TODO: CPR delete block below
+//   if (head_valid && completed) {    // AL head exists and completed
+//
+//      // Sanity checks of the 'amo' and 'csr' flags.
+//      assert(!amo || IS_AMO(PAY.buf[PAY.head].flags));
+//      assert(!csr || IS_CSR(PAY.buf[PAY.head].flags));
+//
+//      // If no exception (yet):
+//      // 1. If the instruction is an atomic memory operation (read-modify-write a memory address), execute it now.
+//      //    The atomic may raise an exception here.
+//      // 2. If the instruction is a csr instruction, execute it now.
+//      //    The csr instruction may raise an exception here.
+//      if (!exception) {
+//	      if (amo && !(load || store)) {	// amo, excluding load-with-reservation (LR) and store-conditional (SC)
+//            exception = execute_amo();
+//         }
+//         else if (csr) {
+//            exception = execute_csr();
+//         }
+//
+//         if (exception)
+//	         REN->set_exception(PAY.buf[PAY.head].checkpoint_ID);
+//      }
+//
+//      if (!exception && !load_viol) {
+//	      //
+//         // FIX_ME #17b
+//         // Commit the instruction at the head of the active list.
+//         //
+//
+//         // FIX_ME #17b BEGIN
+//         REN->commit();
+//         // FIX_ME #17b END
+//
+//	      // If the committed instruction is a load or store, signal the LSU to commit its oldest load or store, respectively.
+//         if (load || store) {
+//            assert(load != store);   // Make sure that the same instruction does not have both flags set.
+//	        LSU.train(load);	     // Train MDP and update stats.
+//            amo_success = LSU.commit(load, amo);
+//            assert(amo_success);     // Assert store-conditionals (SC) are successful.
+//         }
+//
+//         // If the committed instruction is a branch, signal the branch predictor to commit its oldest branch.
+//         if (branch) {
+//	    // TODO (ER): Change the branch predictor interface as follows: FetchUnit->commit().
+//            FetchUnit->commit(PAY.buf[PAY.head].pred_tag);
+//         }
+//
+//         if (IS_FP_OP(PAY.buf[PAY.head].flags)) {
+//            // post the FP exception bit to CSR fflags (the Accrued Exception Flags)
+//            get_state()->fflags |= PAY.buf[PAY.head].fflags;
+//         }
+//
+//         // Check results.
+//         checker();
+//
+//         // Keep track of the number of retired instructions.
+//         num_insn++;
+//         instret++;
+//         inc_counter(commit_count);
+//         if (PAY.buf[PAY.head].split && PAY.buf[PAY.head].upper)
+//            num_insn_split++;
+//
+//         if (amo || csr) {   // Resume the stalled fetch unit after committing a serializing instruction.
+//            insn_t inst = PAY.buf[PAY.head].inst;
+//            reg_t next_inst_pc;
+//            if ((inst.funct3() == FN3_SC_SB) && (inst.funct12() == FN12_SRET))  // SRET instruction.
+//               next_inst_pc = state.epc;
+//            else
+//               next_inst_pc = INCREMENT_PC(PAY.buf[PAY.head].pc);
+//
+//            // The serializing instruction stalled the fetch unit so the pipeline is now empty. Resume fetch.
+//            FetchUnit->flush(next_inst_pc);
+//
+//            // Pop the instruction from PAY.
+//            if (!PAY.buf[PAY.head].split) PAY.pop();
+//            PAY.pop();
+//         }
+//         else if (br_misp || val_misp) {   // Complete-squash the pipeline after committing a mispredicted branch or
+//                                          // a value-mispredicted instruction, if "approach #1 recovery" is configured.
+//            reg_t next_inst_pc;
+//            if (br_misp)
+//                     next_inst_pc = PAY.buf[PAY.head].c_next_pc;
+//            else
+//               next_inst_pc = INCREMENT_PC(PAY.buf[PAY.head].pc);
+//
+//            // The head instruction was already committed above (fix #17b).
+//            // Squash all instructions after it.
+//            squash_complete(next_inst_pc);
+//            inc_counter(recovery_count);
+//
+//            // Pop the instruction from PAY.
+//            if (!PAY.buf[PAY.head].split) PAY.pop();
+//            PAY.pop();
+//
+//            // Flush PAY.
+//            PAY.clear();
+//         }
+//         else {
+//            // Pop the instruction from PAY.
+//            if (!PAY.buf[PAY.head].split) PAY.pop();
+//            PAY.pop();
+//         }
+//      }
+//      else if (!exception && load_viol) {
+//	 // This is a mispredicted load owing to speculative memory disambiguation (not value prediction).
+//	 // Therefore the load is incorrect and not committed.
+//         assert(load);
+//
+//	 // Train MDP and update stats.
+//	 LSU.train(load);
+//
+//         // Full squash, including the mispredicted load, and restart fetching from the load.
+//         squash_complete(offending_PC);
+//         inc_counter(recovery_count);
+//         inc_counter(ld_vio_count);
+//
+//         // Flush PAY.
+//         PAY.clear();
+//      }
+//      else {   // exception
+//         trap = PAY.buf[PAY.head].trap.get();
+//
+//         // CSR exceptions are micro-architectural exceptions and are
+//         // not defined by the ISA. These must be handled exclusively by
+//         // the micro-arch and is different from other exceptions specified
+//         // in the ISA.
+//         // This is a serialize trap - Refetch the CSR instruction
+//         reg_t jump_PC;
+//         if (trap->cause() == CAUSE_CSR_INSTRUCTION) {
+//            jump_PC = offending_PC;
+//         } 
+//         else {
+//            jump_PC = take_trap(*trap, offending_PC);
+//         }
+//
+//         // Keep track of the number of retired instructions.
+//	 instret++;
+//	 num_insn++;	
+//         inc_counter(commit_count);
+//         inc_counter(exception_count);
+//
+//         // Compare pipeline simulator against functional simulator.
+//         checker();
+//
+//         // Squash the pipeline.
+//         squash_complete(jump_PC);
+//         inc_counter(recovery_count);
+//
+//         // Flush PAY.
+//         PAY.clear();
+//      }
+//   }
+
 }
 
 

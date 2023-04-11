@@ -185,8 +185,7 @@ public:
 	void mispredict(uint64_t branch_pred_tag, bool taken, uint64_t next_pc);
 
 	// Commit the indicated branch from the branch queue.
-	// We assert that it is at the head.
-	void commit(uint64_t branch_pred_tag);
+	void commit();
 
 	// Complete squash.
 	// 1. Roll-back the branch queue to the head entry.
