@@ -335,10 +335,8 @@ public:
 	bool stall_checkpoint(uint64_t bundle_chkpts);
 
 	/////////////////////////////////////////////////////////////////////
-	// This function is used to get the branch mask for an instruction.
+	// This function is used to get the checkpoint ID affiliated with an instruction.
 	/////////////////////////////////////////////////////////////////////
-	//uint64_t get_branch_mask(); TODO: 
-
 	uint64_t get_checkpoint_ID(bool load, bool store, 
                                bool branch, bool amo, 
 							   bool csr);
@@ -535,9 +533,9 @@ public:
 	//   reaches the head of the Active List. We don’t want or need
 	//   that because we immediately recover within this function.)
 	/////////////////////////////////////////////////////////////////////
-	void resolve(uint64_t AL_index,
-		         uint64_t branch_ID,
-		         bool correct);
+	//TODO: update comment
+	uint64_t rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
+				  	  uint64_t &total_stores, uint64_t &total_branches);
 
 	//////////////////////////////////////////
 	// Functions related to Retire Stage.   //
@@ -616,6 +614,7 @@ public:
 	// load violation bit, branch misprediction bit, and
 	// value misprediction bit, of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
+	void decrement_usage_counter(uint64_t chkpt_ID, uint64_t PRF_index);
 	void set_exception(uint64_t chckpnt_ID);
 	void set_load_violation(uint64_t AL_index);
 	void set_branch_misprediction(uint64_t AL_index);

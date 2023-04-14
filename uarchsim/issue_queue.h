@@ -11,7 +11,7 @@ typedef struct {
 	unsigned int index;
 
 	// Branches that this instruction depends on.
-	uint64_t branch_mask;
+	uint64_t checkpoint_ID;
 
 	// Execution lane that this instruction wants.
 	unsigned int lane_id;
@@ -71,7 +71,7 @@ private:
 public:
 	issue_queue(unsigned int size, unsigned int num_parts, pipeline_t* _proc=NULL);	// constructor
 	bool stall(unsigned int bundle_inst);
-	void dispatch(unsigned int index, unsigned long long branch_mask, unsigned int lane_id,
+	void dispatch(unsigned int index, unsigned long long checkpoint_ID, unsigned int lane_id,
 	              bool A_valid, bool A_ready, unsigned int A_tag,
 	              bool B_valid, bool B_ready, unsigned int B_tag,
 	              bool D_valid, bool D_ready, unsigned int D_tag);
@@ -79,7 +79,7 @@ public:
 	void select_and_issue(unsigned int num_lanes, lane* Execution_Lanes);
 	void flush();
 	void clear_branch_bit(unsigned int branch_ID);
-	void squash(unsigned int branch_ID);
+	void squash(uint64_t squash_mask);
   void dump_iq(pipeline_t* proc, unsigned int index,FILE* file=stderr);
 };
 

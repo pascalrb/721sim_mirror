@@ -168,6 +168,9 @@ void pipeline_t::rename2() {
 
 
       //CPR Support
+      //TODO: **********************************
+      //TODO: do I put all CPR changes into the good_instruction check??
+      //TODO: *********************************
       if(PAY.buf[index].good_instruction){
          actual = get_pipe()->peek(PAY.buf[index].db_index);
 
@@ -200,6 +203,8 @@ void pipeline_t::rename2() {
          PAY.buf[index].checkpoint_ID = REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags), 
                                  IS_STORE(PAY.buf[index].flags), IS_BRANCH(PAY.buf[index].flags), 
                                  IS_AMO(PAY.buf[index].flags), IS_CSR(PAY.buf[index].flags));
+
+         RENAME2[i].checkpoint_ID = PAY.buf[index].checkpoint_ID;
 
          if(actual->a_exception){
             REN->set_exception(PAY.buf[index].checkpoint_ID);
@@ -260,6 +265,6 @@ void pipeline_t::rename2() {
       RENAME2[i].valid = false;
       DISPATCH[i].valid = true;
       DISPATCH[i].index = RENAME2[i].index;
-      DISPATCH[i].branch_mask = RENAME2[i].branch_mask;
+      DISPATCH[i].checkpoint_ID = RENAME2[i].checkpoint_ID;
    }
 }

@@ -191,14 +191,6 @@ bool renamer::stall_checkpoint(uint64_t bundle_chkpts)
 //    }
 //}
 
-//TODO: need modified or no longer need
-//uint64_t renamer::get_branch_mask()  
-//{
-//    //printf("get_branch_mask() - %016lx\n", GBM);
-//
-//    return GBM;
-//}
-
 uint64_t renamer::get_checkpoint_ID(bool load, bool store, 
                                     bool branch, bool amo, 
                                     bool csr)  
@@ -377,54 +369,73 @@ void renamer::set_complete(uint64_t checkpoint_ID)
     CPBuffer.CPBuffEntries[checkpoint_ID].uncompleted_instr_count--;
 }
 
-void renamer::resolve(uint64_t AL_index,
-	                  uint64_t branch_ID,
-	                  bool correct)
+uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
+				           uint64_t &total_stores, uint64_t &total_branches)
 {
-    //printf("resolve() - branch_ID: %lu\n", branch_ID);
+    //printf("resolve() - squash_mask: %lu\n", squash_mask);
 
-    if(correct){
-        //clear branch IDth bit in GBM
-        GBM &= ~(1ULL<<branch_ID);
+    uint64_t squash_mask, to_tail, to_chkpt;
 
-        //clear branch IDth bit in all checkpointed GBMs
-        for(uint64_t i=0; i<UNRESOLVED_BRANCHES_SIZE; i++){
-            BCs[i].GBM_copy &= ~(1ULL<<branch_ID);
-        }
-
-    }else{
-        //restore FL
-        FL.head = BCs[branch_ID].fl_head_copy;
-        FL.head_pb = BCs[branch_ID].fl_head_pb_copy;
-
-        //Restoring AL tail to the entry just after the mispredicted branch 
-        if(AL_index == AL_SIZE-1){
-            AL.tail = 0;
+    if(next){
+        if (chkpt_id == UNRESOLVED_BRANCHES_SIZE-1){
+            chkpt_id = 0;
         }else{
-            AL.tail = AL_index+1;
+            chkpt_id++;
         }
-        //restoring AL tail phase bit
-        if(AL.tail_pb == AL.head_pb){
-            if(AL_index == AL_SIZE-1){
-                AL.tail_pb = !AL.tail_pb;
-            }
-        }else{
-            if(AL_index >= AL.head){
-                if(AL_index != AL_SIZE-1){
-                    AL.tail_pb = !AL.tail_pb;
-                }
-            }
-        }
-
-
-        //clear branch IDth bit in GBM_copy of IDth BC (freeing the BC)
-        BCs[branch_ID].GBM_copy &= ~(1ULL<<branch_ID);
-
-        //restoring structures from the IDth branch
-        GBM = BCs[branch_ID].GBM_copy;
-        RMT = BCs[branch_ID].RMT_copy;
-
     }
+
+    // assert checkpoint exists (in between CPBuffer head and tail)
+    if(CPBuffer.head_pb == CPBuffer.tail_pb){
+        //head --> tail
+        assert(chkpt_id >= CPBuffer.head && chkpt_id < CPBuffer.tail);
+    }else{
+        //tail --> head (wrapped around)
+        if(CPBuffer.head != CPBuffer.tail){
+            assert(chkpt_id >= CPBuffer.head && chkpt_id < CPBuffer.tail);
+        }
+        //if full (head == tail), chkpt_id can be anywhere
+    }
+
+    RMT = CPBuffer.CPBuffEntries[chkpt_id].RMT_copy;
+    PRFUnnmappedBits = CPBuffer.CPBuffEntries[chkpt_id].PRFUnnmappedBits_copy;
+    
+    CPBuffer.CPBuffEntries[chkpt_id].uncompleted_instr_count    = 0;
+    CPBuffer.CPBuffEntries[chkpt_id].load_count                 = 0;
+    CPBuffer.CPBuffEntries[chkpt_id].store_count                = 0;
+    CPBuffer.CPBuffEntries[chkpt_id].branch_count               = 0;
+    CPBuffer.CPBuffEntries[chkpt_id].has_amo_instr              = false;
+    CPBuffer.CPBuffEntries[chkpt_id].has_csr_instr              = false;
+    CPBuffer.CPBuffEntries[chkpt_id].has_except_instr           = false;
+
+    to_chkpt = CPBuffer.head;
+    while(to_chkpt != chkpt_id){
+        total_loads += CPBuffer.CPBuffEntries[to_chkpt].load_count; 
+        total_stores += CPBuffer.CPBuffEntries[to_chkpt].store_count; 
+        total_branches += CPBuffer.CPBuffEntries[to_chkpt].branch_count; 
+
+        if (chkpt_id == UNRESOLVED_BRANCHES_SIZE-1){
+            to_chkpt = 0;
+        }else{
+            to_chkpt++;
+        }
+    }
+
+    //TODO: Decrement the usage counter of each physical reg mapped in each squashed/freed chkpt
+
+
+    // masking bits from chkpt_id to tail
+    squash_mask = ~((1 << chkpt_id) - 1);
+    to_tail = (1 << CPBuffer.tail) - 1;
+
+    if(chkpt_id < CPBuffer.tail){
+        //head --> tail
+        squash_mask &= to_tail;
+    }else{
+        //tail --> head (wrapped around)
+        squash_mask |= to_tail;
+    }
+    
+    return squash_mask;
 }
 
 bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores,
@@ -515,6 +526,11 @@ void renamer::squash()
 //    }
 // TODO: may no longer need
 
+}
+
+void renamer::decrement_usage_counter(uint64_t chkpt_ID, uint64_t PRF_index)
+{
+    CPBuffer.CPBuffEntries[chkpt_ID].PRFUsageCounter_copy[PRF_index]--;
 }
 
 void renamer::set_exception(uint64_t checkpoint_ID)

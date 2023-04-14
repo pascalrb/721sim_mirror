@@ -234,9 +234,10 @@ void pipeline_t::dispatch() {
             //    * 'B_valid', 'B_ready', and 'B_tag': Valid bit, ready bit (calculated above), and physical register of second source register.
             //    * 'D_valid', 'D_ready', and 'D_tag': Valid bit, ready bit (calculated above), and physical register of third source register.
             // 3. As you can see in file pipeline.h, the IQ variable is the Issue Queue itself, NOT a pointer to it.
+            //TODO: update comment (branch_mask -> checkpoint_ID)
 
             // FIX_ME #10a BEGIN
-            IQ.dispatch(index, DISPATCH[i].branch_mask, PAY.buf[index].lane_id, 
+            IQ.dispatch(index, DISPATCH[i].checkpoint_ID, PAY.buf[index].lane_id, 
                         PAY.buf[index].A_valid, A_ready, PAY.buf[index].A_phys_reg,
                         PAY.buf[index].B_valid, B_ready, PAY.buf[index].B_phys_reg,
                         PAY.buf[index].D_valid, D_ready, PAY.buf[index].D_phys_reg);

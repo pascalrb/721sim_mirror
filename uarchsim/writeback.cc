@@ -3,6 +3,7 @@
 
 void pipeline_t::writeback(unsigned int lane_number) {
    unsigned int index;
+   uint64_t squash_mask;
 
    // Check if there is an instruction in the Writeback Stage of the specified Execution Lane.
    if (Execution_Lanes[lane_number].wb.valid) {
@@ -33,65 +34,70 @@ void pipeline_t::writeback(unsigned int lane_number) {
       //   logically after the branch.
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+      //TODO: CPR; this used to only be set for branch mispredictions
+      //       we checkpoint for more reasons now so we might miss some checkpoint=true instances 
       if (PAY.buf[index].checkpoint) {
 
-         if (PERFECT_BRANCH_PRED) {
-            // TODO: This assert fails due to asynchrony caused by HTIF ticks.
-            // A branch may have already went in the taken direction in ISA sim
-            // since a HTIF tick followed by CSR read instructions might have
-            // already updated the condition check source register for this branch.
-            // The same source register won't be updated until the corresponding HTIF
-            // tick has happened in micro_sim and the corresponding CSR instruction has
-            // retired in micro_sim. The CSR read instruction will force a recovery and
-            // the next time this branch is executed, it will calculate the right value.
+//         if (PERFECT_BRANCH_PRED) {
+//            // TODO: This assert fails due to asynchrony caused by HTIF ticks.
+//            // A branch may have already went in the taken direction in ISA sim
+//            // since a HTIF tick followed by CSR read instructions might have
+//            // already updated the condition check source register for this branch.
+//            // The same source register won't be updated until the corresponding HTIF
+//            // tick has happened in micro_sim and the corresponding CSR instruction has
+//            // retired in micro_sim. The CSR read instruction will force a recovery and
+//            // the next time this branch is executed, it will calculate the right value.
+//
+//            //assert(PAY.buf[index].next_pc == PAY.buf[index].c_next_pc);
+//            //assert((PAY.buf[index].next_pc == PAY.buf[index].c_next_pc) || !PAY.buf[index].good_instruction || SPEC_DISAMBIG);
+//
+//            // FIX_ME #15a
+//            // The simulator is running in perfect branch prediction mode, therefore, all branches are correctly predicted.
+//            // The assertion immediately above confirms that the prediction (next_pc is the predicted target)
+//            // matches the outcome (c_next_pc is the calculated target).
+//            //
+//            // Tips:
+//            // 1. At this point of the code, 'index' is the instruction's index into PAY.buf[] (payload).
+//            // 2. Call the resolve() function of the renamer module so that it frees the branch's checkpoint.
+//            //    Recall that the arguments to resolve() are:
+//            //    * The branch's Active List index
+//            //    * The branch's ID
+//            //    * Whether or not the branch was predicted correctly: in this case it is correct
+//            // 3. Do NOT worry about clearing the branch's bit in the branch masks of instructions in the pipeline.
+//            //    This is unnecessary since instructions don't need accurate branch masks in perfect branch prediction
+//            //    mode... since they are never selectively squashed by branches anyway.
+//
+//            // FIX_ME #15a BEGIN
+//            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
+//            // FIX_ME #15a END
+//         }
+//         else if (PAY.buf[index].next_pc == PAY.buf[index].c_next_pc) {
+//            // Branch was predicted correctly.
+//
+//            // FIX_ME #15b
+//            // The simulator is running in real branch prediction mode, and the branch was correctly predicted.
+//            // You can see this in the comparison above: the prediction (next_pc is the predicted target)
+//            // matches the outcome (c_next_pc is the calculated target).
+//            //
+//            // Tips:
+//            // 1. See #15a, item 1.
+//            // 2. See #15a, item 2.
+//            // 3. Clear the branch's bit in the branch masks of instructions in the pipeline.
+//            //    To do this, call the resolve() function with the appropriate arguments. This function does the work for you.
+//            //    * resolve() is a private function of the pipeline_t class, therefore, just call it literally as 'resolve'.
+//            //    * resolve() takes two arguments. The first argument is the branch's ID. The second argument is a flag that
+//            //      indicates whether or not the branch was predicted correctly: in this case it is correct.
+//            //    * See pipeline.h for details about the two arguments of resolve().
+//
+//            // FIX_ME #15b BEGIN
+//            resolve(PAY.buf[index].branch_ID, true);
+//            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
+//            // FIX_ME #15b END
+//         }
+//TODO: get rid of after testing/debugging
+//         else {
 
-            //assert(PAY.buf[index].next_pc == PAY.buf[index].c_next_pc);
-            //assert((PAY.buf[index].next_pc == PAY.buf[index].c_next_pc) || !PAY.buf[index].good_instruction || SPEC_DISAMBIG);
-
-            // FIX_ME #15a
-            // The simulator is running in perfect branch prediction mode, therefore, all branches are correctly predicted.
-            // The assertion immediately above confirms that the prediction (next_pc is the predicted target)
-            // matches the outcome (c_next_pc is the calculated target).
-            //
-            // Tips:
-            // 1. At this point of the code, 'index' is the instruction's index into PAY.buf[] (payload).
-            // 2. Call the resolve() function of the renamer module so that it frees the branch's checkpoint.
-            //    Recall that the arguments to resolve() are:
-            //    * The branch's Active List index
-            //    * The branch's ID
-            //    * Whether or not the branch was predicted correctly: in this case it is correct
-            // 3. Do NOT worry about clearing the branch's bit in the branch masks of instructions in the pipeline.
-            //    This is unnecessary since instructions don't need accurate branch masks in perfect branch prediction
-            //    mode... since they are never selectively squashed by branches anyway.
-
-            // FIX_ME #15a BEGIN
-            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
-            // FIX_ME #15a END
-         }
-         else if (PAY.buf[index].next_pc == PAY.buf[index].c_next_pc) {
-            // Branch was predicted correctly.
-
-            // FIX_ME #15b
-            // The simulator is running in real branch prediction mode, and the branch was correctly predicted.
-            // You can see this in the comparison above: the prediction (next_pc is the predicted target)
-            // matches the outcome (c_next_pc is the calculated target).
-            //
-            // Tips:
-            // 1. See #15a, item 1.
-            // 2. See #15a, item 2.
-            // 3. Clear the branch's bit in the branch masks of instructions in the pipeline.
-            //    To do this, call the resolve() function with the appropriate arguments. This function does the work for you.
-            //    * resolve() is a private function of the pipeline_t class, therefore, just call it literally as 'resolve'.
-            //    * resolve() takes two arguments. The first argument is the branch's ID. The second argument is a flag that
-            //      indicates whether or not the branch was predicted correctly: in this case it is correct.
-            //    * See pipeline.h for details about the two arguments of resolve().
-
-            // FIX_ME #15b BEGIN
-            resolve(PAY.buf[index].branch_ID, true);
-            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
-            // FIX_ME #15b END
-         }
-         else {
+         if(!PERFECT_BRANCH_PRED && PAY.buf[index].next_pc != PAY.buf[index].c_next_pc){
             // Branch was mispredicted.
 
             // Roll-back the Fetch Unit.
@@ -116,7 +122,11 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    This will restore the RMT, FL, and AL, and also free this and future checkpoints... etc.
 
             // FIX_ME #15c BEGIN
-            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, false);
+            //TODO: update comment
+            //REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, false);
+
+            uint64_t total_loads, total_stores, total_branches;
+            squash_mask = REN->rollback(PAY.buf[index].checkpoint_ID, true, total_loads, total_stores, total_branches);
             // FIX_ME #15c END
 
             // Restore the LQ/SQ.
@@ -134,14 +144,17 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //      indicates whether or not the branch was predicted correctly: in this case it is not-correct.
             //    * See pipeline.h for details about the two arguments of resolve().
 
+            //TODO: update comment
             // FIX_ME #15d BEGIN
-            resolve(PAY.buf[index].branch_ID, false);
+            //resolve(PAY.buf[index].branch_ID, false);
+
+            selective_squash(squash_mask);
             // FIX_ME #15d END
 
             // Rollback PAY to the point of the branch.
             PAY.rollback(index);
          }
-      }
+ //     }
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       // FIX_ME #16

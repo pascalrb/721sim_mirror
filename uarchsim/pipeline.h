@@ -78,10 +78,11 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
-#define BIT_IS_ZERO(x,i)	(((x) & (((unsigned long long)1) << i)) == 0)
-#define BIT_IS_ONE(x,i)		(((x) & (((unsigned long long)1) << i)) != 0)
-#define SET_BIT(x,i)		  (x |= (((unsigned long long)1) << i))
-#define CLEAR_BIT(x,i)		(x &= ~(((unsigned long long)1) << i))
+#define BIT_IS_ZERO(x,i)		(((x) & (((unsigned long long)1) << i)) == 0)
+#define BIT_IS_ONE(x,i)			(((x) & (((unsigned long long)1) << i)) != 0)
+#define IS_CHKPT_IN_MASK(i,x)	(((((unsigned long long)1) << i) & (x)) != 0)
+#define SET_BIT(x,i)		  	(x |= (((unsigned long long)1) << i))
+#define CLEAR_BIT(x,i)			(x &= ~(((unsigned long long)1) << i))
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -390,7 +391,7 @@ private:
 	void agen(unsigned int index);
 	void alu(unsigned int index);
 	void squash_complete(reg_t jump_PC);
-	void resolve(unsigned int branch_ID, bool correct);
+	void selective_squash(uint64_t squash_mask);
 	void checker();
 	void check_single(reg_t micro, reg_t isa, db_t* actual, const char *desc);
 	void check_double(reg_t micro0, reg_t micro1, reg_t isa0, reg_t isa1, const char *desc);
