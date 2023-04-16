@@ -268,7 +268,24 @@ void issue_queue::remove(unsigned int i) {
 void issue_queue::flush() {
 	length = 0;
 	for (unsigned int i = 0; i < size; i++) {
-		q[i].valid = false;
+		if (q[i].valid) {
+			//squashing instr
+			//TODO: double check that I'm accessing the correct object instance of PAY
+			if(proc->PAY.buf[q[i].index].A_valid){
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
+			}
+			if(proc->PAY.buf[q[i].index].B_valid){
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
+			}
+			if(proc->PAY.buf[q[i].index].D_valid){
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
+			}
+			if(proc->PAY.buf[q[i].index].C_valid){
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
+			}
+
+			q[i].valid = false;
+		}
 	}
 
 	fl_head = 0;

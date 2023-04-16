@@ -63,7 +63,6 @@ renamer::renamer(uint64_t n_log_regs,
 
     CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy                  = RMT;
     CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
-    //CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
     CPBuffer.CPBuffEntries[CPBuffer.tail].uncompleted_instr_count   = 0;
     CPBuffer.CPBuffEntries[CPBuffer.tail].load_count                = 0;
     CPBuffer.CPBuffEntries[CPBuffer.tail].store_count               = 0;
@@ -119,6 +118,9 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 
     assert(!FL.empty());
 
+    //unmap previous value
+    unmap(RMT[log_reg]);
+
     uint64_t phys_reg = FL.back();
     FL.pop_back();
 
@@ -127,7 +129,6 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
     inc_usage_counter(phys_reg);
 
     //update RMT
-    unmap(RMT[log_reg]);
     RMT[log_reg] = phys_reg;
 
     return phys_reg;
@@ -438,7 +439,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
 
 
 
-    // masking bits from chkpt_id to tail
+    // generating squash mask from chkpt_id to tail
     squash_mask = ~((1 << chkpt_id) - 1);
     to_tail = (1 << CPBuffer.tail) - 1;
 
@@ -511,21 +512,9 @@ void renamer::squash()
 {
     //printf("squash()\n");
 
-    //TODO: shouldn't the RMT be reinitialized with init RMT values like the constructor?
-    //      same with unmapped buts??
-    //      otherwise reinitializing the FL to constructor values won't be work, no?
+    //checkpointing the RMT and Unmapped bit vector
     RMT = CPBuffer.CPBuffEntries[CPBuffer.head].RMT_copy;
     PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy;
-
-    ////THE NON HW WAY //TODO: is this correct?!?
-    ////renitialize the FL & usage counter
-    //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
-    //    PRFUsageCounter[i] = 0;
-    //}
-    //FL.clear();
-    //for(uint64_t i=LOGREG_RMT_AMT_SIZE; i<PHYS_REG_SIZE; i++){
-    //    FL.push_back(i); 
-    //}
 
     //THE REAL HARDWARE WAY - naturally freeing register 
     uint64_t tmp_chkpt = CPBuffer.head;
@@ -550,9 +539,6 @@ void renamer::squash()
             tmp_chkpt++;
         }
     }
-    //TODO:
-    //then in squash_complete() in squash.cc, call dec_usage_counter on instrs in all the back end
-    // (like in selective_squash() in squash.cc but everything gets nixed)
 
 
 //    for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
