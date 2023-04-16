@@ -295,16 +295,16 @@ void issue_queue::squash(uint64_t squash_mask) {
 			//if(PAY.buf[q[i].index].A_valid){
 			//TODO: double check that I'm accessing the correct object instance of PAY
 			if(proc->PAY.buf[q[i].index].A_valid){
-				proc->REN->decrement_usage_counter(q[i].checkpoint_ID, proc->PAY.buf[q[i].index].A_phys_reg);
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
 			}
 			if(proc->PAY.buf[q[i].index].B_valid){
-				proc->REN->decrement_usage_counter(q[i].checkpoint_ID, proc->PAY.buf[q[i].index].B_phys_reg);
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
 			}
 			if(proc->PAY.buf[q[i].index].D_valid){
-				proc->REN->decrement_usage_counter(q[i].checkpoint_ID, proc->PAY.buf[q[i].index].D_phys_reg);
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
 			}
 			if(proc->PAY.buf[q[i].index].C_valid){
-				proc->REN->decrement_usage_counter(q[i].checkpoint_ID, proc->PAY.buf[q[i].index].C_phys_reg);
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
 			}
 
 			remove(i);

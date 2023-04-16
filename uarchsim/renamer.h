@@ -42,8 +42,9 @@ private:
 	/////////////////////////////////////////////////////////////////////
 	typedef struct CPBuff_e{
     	vector<uint64_t> RMT_copy;
-    	vector<bool> PRFUnnmappedBits_copy;  
-		vector<uint64_t> PRFUsageCounter_copy;  
+		vector<bool> PRFUnnmappedBits_copy;  
+		//vector<uint64_t> PRFUsageCounter_copy; 
+		//TODO: delete all references 
 
 		uint64_t uncompleted_instr_count;
 		uint64_t load_count;
@@ -78,15 +79,8 @@ private:
 	// Notes:
 	// * Structure includes head, tail, and their phase bits.
 	/////////////////////////////////////////////////////////////////////
-    typedef struct free_list{
-        vector<uint64_t> fl_regs;           //uint64_t fl_reg[FL_SIZE];
-        uint64_t head;
-        uint64_t tail;
-        bool head_pb;               //head phase bit
-        bool tail_pb;               //tail phase bit
-    }free_list_t;
-
-    free_list_t FL;
+	//TODO: update comment
+    vector<uint64_t> FL;
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 4: Active List
@@ -168,7 +162,7 @@ private:
 	// Structure 5: Physical Register File Ready Bit Array
 	// Entry contains: ready bit
 	/////////////////////////////////////////////////////////////////////
-    vector<bool> PRF_rb;  //TODO: may no longer need. Leaving for now
+    //vector<bool> PRF_rb;  //TODO: may no longer need. Leaving for now
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 6: PRF Usage Counter
@@ -607,15 +601,20 @@ public:
 
 	//////////////////////////////////////////
 	// Functions not tied to specific stage.//
+	// CPR support							//
 	//////////////////////////////////////////
+	void inc_usage_counter(uint64_t phys_reg);
+	void dec_usage_counter(uint64_t phys_reg);
+	void map(uint64_t phys_reg);
+	void unmap(uint64_t phys_reg);
+	void try_reg_reclamation(uint64_t phys_reg);
+	void set_exception(uint64_t chckpnt_ID);
 
 	/////////////////////////////////////////////////////////////////////
 	// Functions for individually setting the exception bit,
 	// load violation bit, branch misprediction bit, and
 	// value misprediction bit, of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
-	void decrement_usage_counter(uint64_t chkpt_ID, uint64_t PRF_index);
-	void set_exception(uint64_t chckpnt_ID);
 	void set_load_violation(uint64_t AL_index);
 	void set_branch_misprediction(uint64_t AL_index);
 	void set_value_misprediction(uint64_t AL_index);

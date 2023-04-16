@@ -49,13 +49,9 @@ renamer::renamer(uint64_t n_log_regs,
     }
     
     // Free List init
-    FL.head = 0;                                 
-    FL.tail = 0;
-    FL.head_pb = false;     // 0 ]___\ full
-    FL.tail_pb = true;      // 1 ]   /
     // intially the remainder of Phys Regs are free (n_phys_regs (allocated in RMT&AMT) - n_log_regs)
     for(uint64_t i=LOGREG_RMT_AMT_SIZE; i<PHYS_REG_SIZE; i++){
-        FL.fl_regs.push_back(i); 
+        FL.push_back(i); 
     }
 
     // Initialize first "oldest" checkpoint buffer
@@ -67,7 +63,7 @@ renamer::renamer(uint64_t n_log_regs,
 
     CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy                  = RMT;
     CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
-    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
+    //CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
     CPBuffer.CPBuffEntries[CPBuffer.tail].uncompleted_instr_count   = 0;
     CPBuffer.CPBuffEntries[CPBuffer.tail].load_count                = 0;
     CPBuffer.CPBuffEntries[CPBuffer.tail].store_count               = 0;
@@ -93,21 +89,13 @@ bool renamer::stall_reg(uint64_t bundle_dst)
 {
     //printf("stall_reg()\n");
 
-    if(FL.head == FL.tail && FL.head_pb == FL.tail_pb){  //empty
+    if(FL.empty()){
         return true;
     }else{
-        if(FL.head_pb == FL.tail_pb){
-           if((FL.tail - FL.head) >= bundle_dst){
-               return false;
-           }else{
-               return true;
-           }
+        if((FL.size() + bundle_dst) > FL_SIZE){
+            return true;
         }else{
-           if((FL_SIZE - (FL.head - FL.tail)) >= bundle_dst){
-               return false;
-           }else{
-               return true;
-           }
+            return false;
         }
     }
 }
@@ -120,7 +108,7 @@ uint64_t renamer::rename_rsrc(uint64_t log_reg)
     uint64_t phys_reg = RMT[log_reg];
 
     //Update usage counter corresponding to the phys reg
-    PRFUsageCounter[phys_reg]++; 
+    inc_usage_counter(phys_reg);
 
     return phys_reg;
 }
@@ -129,22 +117,18 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 {
     //printf("rename_rdst()\n");
 
-    uint64_t phys_reg = FL.fl_regs[FL.head];
+    assert(!FL.empty());
 
-    //Update usage counter corresponding to the phys reg
-    PRFUnnmappedBits[phys_reg] = false;
-    PRFUsageCounter[phys_reg]++; 
+    uint64_t phys_reg = FL.back();
+    FL.pop_back();
+
+    //Update usage counter and mapping corresponding to the phys reg
+    map(phys_reg);
+    inc_usage_counter(phys_reg);
 
     //update RMT
+    unmap(RMT[log_reg]);
     RMT[log_reg] = phys_reg;
-
-    //update FL 
-    if (FL.head == FL_SIZE-1){
-        FL.head = 0;
-        FL.head_pb = !FL.head_pb;
-    }else{
-        FL.head++;
-    }
 
     return phys_reg;
 }
@@ -237,12 +221,12 @@ void renamer::checkpoint()
     // should not be called when full; stall_checkpoint should catch that
     assert(!(CPBuffer.head == CPBuffer.tail && CPBuffer.head_pb != CPBuffer.tail_pb));
 
-    CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy                  = RMT;
-    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy     = PRFUnnmappedBits;
-    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy      = PRFUsageCounter;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy = RMT;
+    PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy;
+
     //increment usage counter of each Phys Reg in checkpointed RMT
     for(int i=0; i<RMT.size(); i++){
-        CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUsageCounter_copy[RMT[i]]++;
+        inc_usage_counter(RMT[i]);
     }
     CPBuffer.CPBuffEntries[CPBuffer.tail].uncompleted_instr_count   = 0;
     CPBuffer.CPBuffEntries[CPBuffer.tail].load_count                = 0;
@@ -345,6 +329,7 @@ uint64_t renamer::read(uint64_t phys_reg)
 {
     //printf("read() - phys_reg: %lu\n", phys_reg);
 
+    dec_usage_counter(phys_reg);
     return PRF[phys_reg];
 }
 
@@ -360,6 +345,7 @@ void renamer::write(uint64_t phys_reg, uint64_t value)
     //printf("write() - phys_reg: %lu, value: %lu\n", phys_reg, value);
 
     PRF[phys_reg] = value;
+    dec_usage_counter(phys_reg);
 }
 
 void renamer::set_complete(uint64_t checkpoint_ID)
@@ -374,7 +360,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
 {
     //printf("resolve() - squash_mask: %lu\n", squash_mask);
 
-    uint64_t squash_mask, to_tail, to_chkpt;
+    uint64_t squash_mask, to_tail, tmp_chkpt;
 
     if(next){
         if (chkpt_id == UNRESOLVED_BRANCHES_SIZE-1){
@@ -396,9 +382,38 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
         //if full (head == tail), chkpt_id can be anywhere
     }
 
+    //checkpointing 
     RMT = CPBuffer.CPBuffEntries[chkpt_id].RMT_copy;
     PRFUnnmappedBits = CPBuffer.CPBuffEntries[chkpt_id].PRFUnnmappedBits_copy;
+    //TODO: don't we miss the opportunity to check for the 1-0 scenario and aggressively free Registers?
+    //      (some regs might have been popped from the free list, and rolling back directly like that
+    //       will keep us from putting them back into the FL)
+
+    //Decrement the usage counter of each physical reg mapped in each squashed/freed chkpt
+    tmp_chkpt = chkpt_id;
+    //preserving the chkpt_id checkpoint by starting at next entry after chkpt_id
+    if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
+        tmp_chkpt = 0;
+    }else{
+        tmp_chkpt++;
+    }
+    while(tmp_chkpt != CPBuffer.tail){
+        for(int i=0; i<RMT.size(); i++){
+            dec_usage_counter(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
+        }
+
+        //TODO: ???
+        //unmap(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
     
+        if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
+            tmp_chkpt = 0;
+        }else{
+            tmp_chkpt++;
+        }
+    }
+
+    
+    //reseting the checkpoint's member vars
     CPBuffer.CPBuffEntries[chkpt_id].uncompleted_instr_count    = 0;
     CPBuffer.CPBuffEntries[chkpt_id].load_count                 = 0;
     CPBuffer.CPBuffEntries[chkpt_id].store_count                = 0;
@@ -407,20 +422,20 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
     CPBuffer.CPBuffEntries[chkpt_id].has_csr_instr              = false;
     CPBuffer.CPBuffEntries[chkpt_id].has_except_instr           = false;
 
-    to_chkpt = CPBuffer.head;
-    while(to_chkpt != chkpt_id){
-        total_loads += CPBuffer.CPBuffEntries[to_chkpt].load_count; 
-        total_stores += CPBuffer.CPBuffEntries[to_chkpt].store_count; 
-        total_branches += CPBuffer.CPBuffEntries[to_chkpt].branch_count; 
+    //grabbing total loads, stores, branch count not squashed checkpoints
+    tmp_chkpt = CPBuffer.head;
+    while(tmp_chkpt != chkpt_id){
+        total_loads += CPBuffer.CPBuffEntries[tmp_chkpt].load_count; 
+        total_stores += CPBuffer.CPBuffEntries[tmp_chkpt].store_count; 
+        total_branches += CPBuffer.CPBuffEntries[tmp_chkpt].branch_count; 
 
-        if (chkpt_id == UNRESOLVED_BRANCHES_SIZE-1){
-            to_chkpt = 0;
+        if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
+            tmp_chkpt = 0;
         }else{
-            to_chkpt++;
+            tmp_chkpt++;
         }
     }
 
-    //TODO: Decrement the usage counter of each physical reg mapped in each squashed/freed chkpt
 
 
     // masking bits from chkpt_id to tail
@@ -475,9 +490,10 @@ void renamer::commit(uint64_t log_reg)
 {
     //printf("commit()\n");
 
-    assert(CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy[RMT[log_reg]] > 0);
+    //TODO: 
 
-    CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy[RMT[log_reg]]--;
+    //dec_usage_counter(RMT[log_reg]);
+    dec_usage_counter(CPBuffer.CPBuffEntries[CPBuffer.head].RMT_copy[log_reg]);
 }
 
 void renamer::free_checkpoint()
@@ -490,35 +506,54 @@ void renamer::free_checkpoint()
     }
 }
 
+//Complete squash of the renamer 
 void renamer::squash()
 {
     //printf("squash()\n");
 
-    //TODO: why restoring from the oldest? and not from a specific chkpt
-    //restoring RMT
+    //TODO: shouldn't the RMT be reinitialized with init RMT values like the constructor?
+    //      same with unmapped buts??
+    //      otherwise reinitializing the FL to constructor values won't be work, no?
     RMT = CPBuffer.CPBuffEntries[CPBuffer.head].RMT_copy;
     PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy;
 
-    //PRFUsageCounter = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUsageCounter_copy;
-    //TODO: renitialize??
+    ////THE NON HW WAY //TODO: is this correct?!?
+    ////renitialize the FL & usage counter
     //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
     //    PRFUsageCounter[i] = 0;
     //}
-
-    //FL.head = 0;                                 
-    //FL.tail = 0;
-    //FL.head_pb = false;     // 0 ]___\ full
-    //FL.tail_pb = true;      // 1 ]   /
-    //// intially the remainder of Phys Regs are free (n_phys_regs (allocated in RMT&AMT) - n_log_regs)
+    //FL.clear();
     //for(uint64_t i=LOGREG_RMT_AMT_SIZE; i<PHYS_REG_SIZE; i++){
-    //    FL.fl_regs.push_back(i); 
+    //    FL.push_back(i); 
     //}
 
+    //THE REAL HARDWARE WAY - naturally freeing register 
+    uint64_t tmp_chkpt = CPBuffer.head;
+    //preserving the oldest checkpoint by starting at next entry after chkpt_id
+    if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
+        tmp_chkpt = 0;
+    }else{
+        tmp_chkpt++;
+    }
+    while(tmp_chkpt != CPBuffer.tail){
+        for(int i=0; i<RMT.size(); i++){
+            //This will automatically free regs, pushing them into the FL
+            dec_usage_counter(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
 
+            //TODO: ???
+            //map(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
+        }
+    
+        if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
+            tmp_chkpt = 0;
+        }else{
+            tmp_chkpt++;
+        }
+    }
+    //TODO:
+    //then in squash_complete() in squash.cc, call dec_usage_counter on instrs in all the back end
+    // (like in selective_squash() in squash.cc but everything gets nixed)
 
-    //restoring FL to full
-//    FL.head = FL.tail;
-//    FL.head_pb = !FL.tail_pb;
 
 //    for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
 //        //update PRF ready bit to indicate that phys_reg is ready to be picked up
@@ -528,9 +563,40 @@ void renamer::squash()
 
 }
 
-void renamer::decrement_usage_counter(uint64_t chkpt_ID, uint64_t PRF_index)
+void renamer::inc_usage_counter(uint64_t phys_reg)
 {
-    CPBuffer.CPBuffEntries[chkpt_ID].PRFUsageCounter_copy[PRF_index]--;
+    PRFUsageCounter[phys_reg]++;
+}
+
+void renamer::dec_usage_counter(uint64_t phys_reg)
+{
+    assert(PRFUsageCounter[phys_reg] > 0);
+
+    PRFUsageCounter[phys_reg]--;
+    //Aggressive Register reclammation
+    try_reg_reclamation(phys_reg);
+}
+
+void renamer::map(uint64_t phys_reg)
+{
+    PRFUnnmappedBits[phys_reg] = false;
+}
+void renamer::unmap(uint64_t phys_reg)
+{
+    if(PRFUsageCounter[phys_reg] == 0){
+        PRFUnnmappedBits[phys_reg] = true;
+    }
+    //TODO: can this be called multiple times for the same reg??
+    //  (the same phys reg can be 1-0 for multiple times that unmap 
+    // gets called. This will lead to duplicate push to FL)
+    //try_reg_reclamation(phys_reg);
+}
+
+void renamer::try_reg_reclamation(uint64_t phys_reg)
+{
+    if(PRFUnnmappedBits[phys_reg] && PRFUsageCounter[phys_reg] == 0){
+        FL.push_back(phys_reg);
+    }
 }
 
 void renamer::set_exception(uint64_t checkpoint_ID)

@@ -95,13 +95,20 @@ void pipeline_t::rename2() {
       }
       // FIX_ME #1 END
 
-      if ((instr_renamed_since_last_chekpoint + bundle_dst) == max_instr_bw_checkpoints){
+      //TODO: Do we only count instructions with a valid destination reg (line commented below)
+      //if ((instr_renamed_since_last_chekpoint + bundle_dst) == max_instr_bw_checkpoints){
+      if ((instr_renamed_since_last_chekpoint + i+1) == max_instr_bw_checkpoints){
          //TODO: might reach max and then, below, same instr is an exception; will waste a checkpoint 
          //       or might cause unnecessary stall_checkpoints 
          bundle_chkpts++;
+
+         //TODO: move in block below to avoid counting a bundle_chkpt twice for 1 instr 
+         //    that meets criteria
+         //TODO: also avoid duplicates accross bundle
       }
 
       //CPR support
+      //TODO: double check if we need good_instrucion here
       if(PAY.buf[index].good_instruction){
          actual = get_pipe()->peek(PAY.buf[index].db_index);
 
@@ -170,6 +177,8 @@ void pipeline_t::rename2() {
       //CPR Support
       //TODO: **********************************
       //TODO: do I put all CPR changes into the good_instruction check??
+      //       based on OH, good_instruction should only be used to place checkpoint in an ideal manner
+      //       renaming should still happen even for bad_instructions!!!
       //TODO: *********************************
       if(PAY.buf[index].good_instruction){
          actual = get_pipe()->peek(PAY.buf[index].db_index);
@@ -179,8 +188,10 @@ void pipeline_t::rename2() {
             //TODO: might need to move this out of "cheating" good_instruction path
             //       bc instruction may not be renamed speculatively
 
-            REN->checkpoint();
-            instr_renamed_since_last_chekpoint = 0;  
+            if(instr_renamed_since_last_chekpoint > 0){
+               REN->checkpoint();
+               instr_renamed_since_last_chekpoint = 0;  
+            }
          }
 
          // FIX_ME #3 BEGIN
@@ -198,6 +209,8 @@ void pipeline_t::rename2() {
          }
          // FIX_ME #3 END
 
+         //TODO: this needs to be outside of if good_instruction b/c it is out of it
+         //       in the counting loop above
          instr_renamed_since_last_chekpoint++;
 
          PAY.buf[index].checkpoint_ID = REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags), 
@@ -214,8 +227,10 @@ void pipeline_t::rename2() {
                || actual->a_next_pc != PAY.buf[index].next_pc
                || instr_renamed_since_last_chekpoint == max_instr_bw_checkpoints){
 
-            REN->checkpoint();
-            instr_renamed_since_last_chekpoint = 0;  
+            if(instr_renamed_since_last_chekpoint > 0){
+               REN->checkpoint();
+               instr_renamed_since_last_chekpoint = 0;  
+            }
          }
          //TODO: low confidence branch
       }

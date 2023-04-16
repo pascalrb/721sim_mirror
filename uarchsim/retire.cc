@@ -113,6 +113,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
 
             // Squash the pipeline.
             squash_complete(jump_PC);
+            //instr_renamed_since_last_chekpoint = 0;  //TODO:
             inc_counter(recovery_count);
 
             // Flush PAY.
