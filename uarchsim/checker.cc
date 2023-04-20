@@ -87,7 +87,7 @@ void pipeline_t::checker() {
    // don't check anything else
    if(actual->a_exception){
      // TODO: Add this check
-     assert(REN->get_exception(PAY.buf[head].AL_index) == true);
+     assert(REN->get_exception(PAY.buf[head].checkpoint_ID) == true);
    }
    // If not an architectural exception
    else{

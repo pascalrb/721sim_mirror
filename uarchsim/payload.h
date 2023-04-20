@@ -105,6 +105,7 @@ typedef struct {
    fu_type fu;                  // Operation function unit type.
    cycle_t latency;             // Operation latency (ignore: not currently used).
 
+   //TODO: CPR may no longer need
    bool checkpoint;             // If 'true', this instruction is a branch
                                 // that needs a checkpoint.
 

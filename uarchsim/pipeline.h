@@ -416,7 +416,7 @@ public:
 
 	//CPR support 
 	uint64_t max_instr_bw_checkpoints;
-	uint64_t instr_renamed_since_last_chekpoint;
+	uint64_t instr_renamed_since_last_checkpoint;
 
 
 	// Functions for pipeline stages.
@@ -432,9 +432,10 @@ public:
 	void retire(size_t& instret, size_t instret_limit);
 	void load_replay();
 	void set_exception(unsigned int chckpnt_ID);
-	void set_load_violation(unsigned int al_index);
-	void set_branch_misprediction(unsigned int al_index);
-	void set_value_misprediction(unsigned int al_index);
+	void set_load_violation(unsigned int chckpnt_ID);
+	//TODO: CPR delete
+	//void set_branch_misprediction(unsigned int al_index);
+	//void set_value_misprediction(unsigned int al_index);
 
   //TODO: Implement these functions
 	// Miscellaneous other functions.

@@ -95,7 +95,7 @@ pipeline_t::pipeline_t(
 
   //CPR support
   max_instr_bw_checkpoints            = rob_size / num_chkpts;
-  instr_renamed_since_last_chekpoint  = 0;
+  instr_renamed_since_last_checkpoint = 0;
 
 
   /////////////////////////////////////////////////////////////
@@ -746,14 +746,15 @@ void pipeline_t::set_exception(unsigned int chckpnt_ID) {
    REN->set_exception(chckpnt_ID);
 }
 
-void pipeline_t::set_load_violation(unsigned int al_index) {
-   REN->set_load_violation(al_index);
+void pipeline_t::set_load_violation(unsigned int chckpnt_ID) {
+   REN->set_load_violation(chckpnt_ID);
 }
 
-void pipeline_t::set_branch_misprediction(unsigned int al_index) {
-   REN->set_branch_misprediction(al_index);
-}
-
-void pipeline_t::set_value_misprediction(unsigned int al_index) {
-   REN->set_value_misprediction(al_index);
-}
+//TODO: CPR delete
+//void pipeline_t::set_branch_misprediction(unsigned int al_index) {
+//   REN->set_branch_misprediction(al_index);
+//}
+//
+//void pipeline_t::set_value_misprediction(unsigned int al_index) {
+//   REN->set_value_misprediction(al_index);
+//}

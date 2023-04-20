@@ -48,7 +48,7 @@ void pipeline_t::rename1() {
 }
 
 void pipeline_t::rename2() {
-   unsigned int i;
+   unsigned int i, instr_bw_chkpt;
    unsigned int index;
    unsigned int bundle_dst, bundle_chkpts;
    db_t * actual;
@@ -66,6 +66,7 @@ void pipeline_t::rename2() {
    // Third stall condition: There aren't enough rename resources for the current rename bundle.
    bundle_dst = 0;
    bundle_chkpts = 0;
+   instr_bw_chkpt = instr_renamed_since_last_checkpoint;
    for (i = 0; i < dispatch_width; i++) {
       if (!RENAME2[i].valid)
          break;			// Not a valid instruction: Reached the end of the rename bundle so exit loop.
@@ -85,46 +86,44 @@ void pipeline_t::rename2() {
       // 3. The instruction's payload has all the information you need to count resource needs.
       //    There is a flag in the instruction's payload that *directly* tells you if this instruction needs a checkpoint.
       //    Another field indicates whether or not the instruction has a destination register.
+      //TODO: update comment
 
       // FIX_ME #1 BEGIN
-      if(PAY.buf[index].checkpoint){ //TODO: may no longer need 
-         //bundle_branch++;
-      }
       if(PAY.buf[index].C_valid){
          bundle_dst++;
       }
       // FIX_ME #1 END
 
-      //TODO: Do we only count instructions with a valid destination reg (line commented below)
-      //if ((instr_renamed_since_last_chekpoint + bundle_dst) == max_instr_bw_checkpoints){
-      if ((instr_renamed_since_last_chekpoint + i+1) == max_instr_bw_checkpoints){
-         //TODO: might reach max and then, below, same instr is an exception; will waste a checkpoint 
-         //       or might cause unnecessary stall_checkpoints 
-         bundle_chkpts++;
-
-         //TODO: move in block below to avoid counting a bundle_chkpt twice for 1 instr 
-         //    that meets criteria
-         //TODO: also avoid duplicates accross bundle
-      }
-
-      //CPR support
-      //TODO: double check if we need good_instrucion here
-      if(PAY.buf[index].good_instruction){
-         actual = get_pipe()->peek(PAY.buf[index].db_index);
-
-         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
-            //TODO: might need to move this out of "cheating" good_instruction path
+      //TODO: might need to revise this logic
+      if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
+         if(instr_bw_chkpt == 0){
+            bundle_chkpts += 1;
+         }else{
             bundle_chkpts += 2;
-
-         }else if(actual->a_exception){      
-            bundle_chkpts++;
-
-         }else if(actual->a_next_pc != PAY.buf[index].next_pc){      // branch misprediction
-            bundle_chkpts++;
          }
 
-         //TODO: low confidence branch
+         instr_bw_chkpt = 0;
+
+      }else if(PAY.buf[index].good_instruction){
+         actual = get_pipe()->peek(PAY.buf[index].db_index);
+
+         if(actual->a_exception || (actual->a_next_pc != PAY.buf[index].next_pc)){      
+            if(instr_bw_chkpt != 0){
+               bundle_chkpts++;
+            }
+            
+            instr_bw_chkpt = 0;
+         }
       }
+      
+      if (instr_bw_chkpt == max_instr_bw_checkpoints){
+         bundle_chkpts++;
+
+         instr_bw_chkpt = 0;
+      }
+
+      instr_bw_chkpt++;
+      //TODO: low confidence branch
    }
 
 
@@ -139,9 +138,6 @@ void pipeline_t::rename2() {
    // This is achieved by doing nothing and proceeding to the next statements.
 
    // FIX_ME #2 BEGIN
-   //if(REN->stall_branch(bundle_branch)){
-   //   return;
-   //}
    if(REN->stall_checkpoint(bundle_chkpts)){
       return;
    }
@@ -172,85 +168,88 @@ void pipeline_t::rename2() {
       // 3. When you rename a logical register to a physical register, remember to *update* the instruction's payload with the physical register specifier,
       //    so that the physical register specifier can be used in subsequent pipeline stages.
 
+      //TODO: do I set PAY.buf[index].checkpoint to true after each checkpoint???
 
-
-      //CPR Support
-      //TODO: **********************************
-      //TODO: do I put all CPR changes into the good_instruction check??
-      //       based on OH, good_instruction should only be used to place checkpoint in an ideal manner
-      //       renaming should still happen even for bad_instructions!!!
-      //TODO: *********************************
-      if(PAY.buf[index].good_instruction){
+      if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
+         if(instr_renamed_since_last_checkpoint > 0){
+            REN->checkpoint();
+            instr_renamed_since_last_checkpoint = 0;  
+         }
+      }else if(PAY.buf[index].good_instruction){
          actual = get_pipe()->peek(PAY.buf[index].db_index);
-
-         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
-               || actual->a_exception){
-            //TODO: might need to move this out of "cheating" good_instruction path
-            //       bc instruction may not be renamed speculatively
-
-            if(instr_renamed_since_last_chekpoint > 0){
+         if(actual->a_exception){
+            if(instr_renamed_since_last_checkpoint > 0){
                REN->checkpoint();
-               instr_renamed_since_last_chekpoint = 0;  
+               instr_renamed_since_last_checkpoint = 0;  
             }
          }
+      }
 
-         // FIX_ME #3 BEGIN
-         if(PAY.buf[index].A_valid){
-            PAY.buf[index].A_phys_reg = REN->rename_rsrc(PAY.buf[index].A_log_reg);
-         }
-         if(PAY.buf[index].B_valid){
-            PAY.buf[index].B_phys_reg = REN->rename_rsrc(PAY.buf[index].B_log_reg);
-         }
-         if(PAY.buf[index].D_valid){
-            PAY.buf[index].D_phys_reg = REN->rename_rsrc(PAY.buf[index].D_log_reg);
-         }
-         if(PAY.buf[index].C_valid){
-            PAY.buf[index].C_phys_reg = REN->rename_rdst(PAY.buf[index].C_log_reg);
-         }
-         // FIX_ME #3 END
+      // FIX_ME #3 BEGIN
+      if(PAY.buf[index].A_valid){
+         PAY.buf[index].A_phys_reg = REN->rename_rsrc(PAY.buf[index].A_log_reg);
+      }
+      if(PAY.buf[index].B_valid){
+         PAY.buf[index].B_phys_reg = REN->rename_rsrc(PAY.buf[index].B_log_reg);
+      }
+      if(PAY.buf[index].D_valid){
+         PAY.buf[index].D_phys_reg = REN->rename_rsrc(PAY.buf[index].D_log_reg);
+      }
+      if(PAY.buf[index].C_valid){
+         PAY.buf[index].C_phys_reg = REN->rename_rdst(PAY.buf[index].C_log_reg);
+      }
+      // FIX_ME #3 END
 
-         //TODO: this needs to be outside of if good_instruction b/c it is out of it
-         //       in the counting loop above
-         instr_renamed_since_last_chekpoint++;
+      instr_renamed_since_last_checkpoint++;
 
-         PAY.buf[index].checkpoint_ID = REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags), 
-                                 IS_STORE(PAY.buf[index].flags), IS_BRANCH(PAY.buf[index].flags), 
-                                 IS_AMO(PAY.buf[index].flags), IS_CSR(PAY.buf[index].flags));
+      PAY.buf[index].checkpoint_ID = REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags), 
+                              IS_STORE(PAY.buf[index].flags), IS_BRANCH(PAY.buf[index].flags), 
+                              IS_AMO(PAY.buf[index].flags), IS_CSR(PAY.buf[index].flags));
 
-         RENAME2[i].checkpoint_ID = PAY.buf[index].checkpoint_ID;
+      RENAME2[i].checkpoint_ID = PAY.buf[index].checkpoint_ID;
 
+      if(PAY.buf[index].good_instruction){
+         actual = get_pipe()->peek(PAY.buf[index].db_index);
          if(actual->a_exception){
             REN->set_exception(PAY.buf[index].checkpoint_ID);
          }
-
-         if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
-               || actual->a_next_pc != PAY.buf[index].next_pc
-               || instr_renamed_since_last_chekpoint == max_instr_bw_checkpoints){
-
-            if(instr_renamed_since_last_chekpoint > 0){
-               REN->checkpoint();
-               instr_renamed_since_last_chekpoint = 0;  
-            }
-         }
-         //TODO: low confidence branch
       }
 
-      // FIX_ME #4
-      // Get the instruction's branch mask.
-      //
-      // Tips:
-      // 1. Every instruction gets a branch_mask. An instruction needs to know which branches it depends on, for possible squashing.
-      // 2. The branch_mask is not held in the instruction's PAY.buf[] entry. Rather, it explicitly moves with the instruction
-      //    from one pipeline stage to the next. Normally the branch_mask would be wires at this point in the logic but since we
-      //    don't have wires place it temporarily in the RENAME2[] pipeline register alongside the instruction, until it advances
-      //    to the DISPATCH[] pipeline register. The required left-hand side of the assignment statement is already provided for you below:
-      //    RENAME2[i].branch_mask = ??;
+      if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)
+            || instr_renamed_since_last_checkpoint == max_instr_bw_checkpoints){
 
-      // FIX_ME #4 BEGIN
-      //RENAME2[i].branch_mask = REN->get_branch_mask();
-      //TODO: may no longer need; delete member from structure!
-      // FIX_ME #4 END
-      
+         if(instr_renamed_since_last_checkpoint > 0){
+            REN->checkpoint();
+            instr_renamed_since_last_checkpoint = 0;  
+         }
+      }else if(PAY.buf[index].good_instruction){
+         actual = get_pipe()->peek(PAY.buf[index].db_index);
+         if(actual->a_next_pc != PAY.buf[index].next_pc){
+            if(instr_renamed_since_last_checkpoint > 0){
+               REN->checkpoint();
+               instr_renamed_since_last_checkpoint = 0;  
+            }
+         }
+      }
+      //TODO: low confidence branch
+
+
+   // FIX_ME #4
+   // Get the instruction's branch mask.
+   //
+   // Tips:
+   // 1. Every instruction gets a branch_mask. An instruction needs to know which branches it depends on, for possible squashing.
+   // 2. The branch_mask is not held in the instruction's PAY.buf[] entry. Rather, it explicitly moves with the instruction
+   //    from one pipeline stage to the next. Normally the branch_mask would be wires at this point in the logic but since we
+   //    don't have wires place it temporarily in the RENAME2[] pipeline register alongside the instruction, until it advances
+   //    to the DISPATCH[] pipeline register. The required left-hand side of the assignment statement is already provided for you below:
+   //    RENAME2[i].branch_mask = ??;
+
+   // FIX_ME #4 BEGIN
+   //RENAME2[i].branch_mask = REN->get_branch_mask();
+   //TODO: may no longer need; delete member from structure!
+   // FIX_ME #4 END
+   
 
 //      // FIX_ME #5
 //      // If this instruction requires a checkpoint (most branches), then create a checkpoint.

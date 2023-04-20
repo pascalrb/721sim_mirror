@@ -301,7 +301,7 @@ void issue_queue::flush() {
 
 void issue_queue::clear_branch_bit(unsigned int branch_ID) {
 	for (unsigned int i = 0; i < size; i++) {
-		CLEAR_BIT(q[i].checkpoint_ID, branch_ID);
+		CLEAR_BIT(q[i].checkpoint_ID, bbranch_ID);
 	}
 }
 

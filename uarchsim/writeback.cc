@@ -127,7 +127,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
 
             uint64_t total_loads, total_stores, total_branches;
             squash_mask = REN->rollback(PAY.buf[index].checkpoint_ID, true, total_loads, total_stores, total_branches);
-            instr_renamed_since_last_chekpoint = 0;
+            instr_renamed_since_last_checkpoint = 0;
             // FIX_ME #15c END
 
             // Restore the LQ/SQ.

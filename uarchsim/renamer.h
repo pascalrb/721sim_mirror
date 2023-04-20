@@ -3,7 +3,7 @@
 
 using namespace std;
 
-#define MAX_UNRESOLVED_BRANCHES 64 //TODO: set to 8??
+#define MAX_UNRESOLVED_BRANCHES 8 //TODO: CPR change; was 64
 
 class renamer {
 private:
@@ -43,8 +43,6 @@ private:
 	typedef struct CPBuff_e{
     	vector<uint64_t> RMT_copy;
 		vector<bool> PRFUnnmappedBits_copy;  
-		//vector<uint64_t> PRFUsageCounter_copy; 
-		//TODO: delete all references 
 
 		uint64_t uncompleted_instr_count;
 		uint64_t load_count;
@@ -66,12 +64,6 @@ private:
 	CPBuffer_t CPBuffer;
 
 	/////////////////////////////////////////////////////////////////////
-	// Structure 3: Checkpoint Buffer
-	// Entry contains: Checkpointed RMT and 4 counters: 
-	/////////////////////////////////////////////////////////////////////
-    //vector<uint64_t> AMT;  //TODO: no longer need
-
-	/////////////////////////////////////////////////////////////////////
 	// Structure 3: Free List
 	//
 	// Entry contains: physical register number
@@ -81,72 +73,6 @@ private:
 	/////////////////////////////////////////////////////////////////////
 	//TODO: update comment
     vector<uint64_t> FL;
-
-	/////////////////////////////////////////////////////////////////////
-	// Structure 4: Active List
-	//
-	// Entry contains:
-	//
-	// ----- Fields related to destination register.
-	// 1. destination flag (indicates whether or not the instr. has a
-	//    destination register)
-	// 2. logical register number of the instruction's destination
-	// 3. physical register number of the instruction's destination
-	// ----- Fields related to completion status.
-	// 4. completed bit
-	// ----- Fields for signaling offending instructions.
-	// 5. exception bit
-	// 6. load violation bit
-	//    * Younger load issued before an older conflicting store.
-	//      This can happen when speculative memory disambiguation
-	//      is enabled.
-	// 7. branch misprediction bit
-	//    * At present, not ever set by the pipeline. It is simply
-	//      available for deferred-recovery Approaches #1 or #2.
-	//      Project 1 uses Approach #5, however.
-	// 8. value misprediction bit
-	//    * At present, not ever set by the pipeline. It is simply
-	//      available for deferred-recovery Approaches #1 or #2,
-	//      if value prediction is added (e.g., research projects).
-	// ----- Fields indicating special instruction types.
-	// 9. load flag (indicates whether or not the instr. is a load)
-	// 10. store flag (indicates whether or not the instr. is a store)
-	// 11. branch flag (indicates whether or not the instr. is a branch)
-	// 12. amo flag (whether or not instr. is an atomic memory operation)
-	// 13. csr flag (whether or not instr. is a system instruction)
-	// ----- Other fields.
-	// 14. program counter of the instruction
-	//
-	// Notes:
-	// * Structure includes head, tail, and their phase bits.
-	/////////////////////////////////////////////////////////////////////
-    //typedef struct AL_e{
-    //    uint64_t PC;
-    //    uint64_t dest_log_reg; 
-    //    uint64_t dest_phys_reg;
-    //    bool has_dest_reg;
-    //    bool is_completed;
-    //    bool is_exception;
-    //    bool is_load_violated;
-    //    bool is_branch_mispredicted;
-    //    bool is_value_mispredicted;
-    //    bool is_load_instr;
-    //    bool is_store_instr;
-    //    bool is_branch_instr;
-    //    bool is_amo_instr;
-    //    bool is_csr_instr;
-    //}active_list_e;
-    
-    //typedef struct AL{
-    //    vector<active_list_e> AL_entries;    //active_list_e AL_entry[AL_SIZE]; 
-    //    uint64_t head;
-    //    uint64_t tail;
-    //    bool head_pb;               //head phase bit
-    //    bool tail_pb;               //tail phase bit
-    //}active_list_t;
-
-    //active_list_t AL;
-
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 4: Physical Register File
@@ -162,7 +88,7 @@ private:
 	// Structure 5: Physical Register File Ready Bit Array
 	// Entry contains: ready bit
 	/////////////////////////////////////////////////////////////////////
-    //vector<bool> PRF_rb;  //TODO: may no longer need. Leaving for now
+	vector<bool> PRF_rb; 
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 6: PRF Usage Counter
@@ -182,64 +108,6 @@ private:
 	//		 dest log reg
 	/////////////////////////////////////////////////////////////////////
     vector<bool> PRFUnnmappedBits;		
-
-
-	/////////////////////////////////////////////////////////////////////
-	// Structure 7: Global Branch Mask (GBM)
-	//
-	// The Global Branch Mask (GBM) is a bit vector that keeps track of
-	// all unresolved branches. A '1' bit corresponds to an unresolved
-	// branch. The "branch ID" of the unresolved branch is its position
-	// in the bit vector.
-	//
-	// The GBM serves two purposes:
-	//
-	// 1. It provides a means for allocating checkpoints to unresolved
-	//    branches. There are as many checkpoints as there are bits in
-	//    the GBM. If all bits in the GBM are '1', then there are no
-	//    free bits, hence, no free checkpoints. On the other hand, if
-	//    not all bits in the GBM are '1', then any of the '0' bits
-	//    are free and the corresponding checkpoints are free.
-	//    
-	// 2. Each in-flight instruction needs to know which unresolved
-	//    branches it depends on, i.e., which unresolved branches are
-	//    logically before it in program order. This information
-	//    makes it possible to squash instructions that are after a
-	//    branch, in program order, and not instructions before the
-	//    branch. This functionality will be implemented using
-	//    branch masks, as was done in the MIPS R10000 processor.
-	//    An instruction's initial branch mask is the value of the
-	//    the GBM when the instruction is renamed.
-	//
-	// The simulator requires an efficient implementation of bit vectors,
-	// for quick copying and manipulation of bit vectors. Therefore, you
-	// must implement the GBM as type "uint64_t".
-	// (#include <inttypes.h>, already at top of this file)
-	// The "uint64_t" type contains 64 bits, therefore, the simulator
-	// cannot support a processor configuration with more than 64
-	// unresolved branches. The maximum number of unresolved branches
-	// is configurable by the user of the simulator, and can range from
-	// 1 to 64.
-	/////////////////////////////////////////////////////////////////////
-	//uint64_t GBM;  //TODO: no longer need
-
-
-	/////////////////////////////////////////////////////////////////////
-	// Structure 8: Branch Checkpoints
-	//
-	// Each branch checkpoint contains the following:
-	// 1. Shadow Map Table (checkpointed Rename Map Table)
-	// 2. checkpointed Free List head pointer and its phase bit
-	// 3. checkpointed GBM
-	/////////////////////////////////////////////////////////////////////
-    //typedef struct branch_checkpoint{
-    //    vector<uint64_t> RMT_copy;             //uint64_t rmt_copy[RMT_SIZE]
-    //    uint64_t fl_head_copy;
-    //    uint64_t fl_head_pb_copy;
-    //    uint64_t GBM_copy;
-    //}branch_checkpoint_t;  //TODO: no longer need
-
-    //vector<branch_checkpoint> BCs;  //TODO: no longer need
 
 	/////////////////////////////////////////////////////////////////////
 	// Private functions.
@@ -379,63 +247,6 @@ public:
 	void checkpoint();
 
 	void free_checkpoint();
-
-	//////////////////////////////////////////
-	// Functions related to Dispatch Stage. //
-	//////////////////////////////////////////
-
-	/////////////////////////////////////////////////////////////////////
-	// The Dispatch Stage must stall if there are not enough free
-	// entries in the Active List for all instructions in the current
-	// dispatch bundle.
-	//
-	// Inputs:
-	// 1. bundle_inst: number of instructions in current dispatch bundle
-	//
-	// Return value:
-	// Return "true" (stall) if the Active List does not have enough
-	// space for all instructions in the dispatch bundle.
-	/////////////////////////////////////////////////////////////////////
-	//bool stall_dispatch(uint64_t bundle_inst);  //TODO: no longer need
-
-	/////////////////////////////////////////////////////////////////////
-	// This function dispatches a single instruction into the Active
-	// List.
-	//
-	// Inputs:
-	// 1. dest_valid: If 'true', the instr. has a destination register,
-	//    otherwise it does not. If it does not, then the log_reg and
-	//    phys_reg inputs should be ignored.
-	// 2. log_reg: Logical register number of the instruction's
-	//    destination.
-	// 3. phys_reg: Physical register number of the instruction's
-	//    destination.
-	// 4. load: If 'true', the instr. is a load, otherwise it isn't.
-	// 5. store: If 'true', the instr. is a store, otherwise it isn't.
-	// 6. branch: If 'true', the instr. is a branch, otherwise it isn't.
-	// 7. amo: If 'true', this is an atomic memory operation.
-	// 8. csr: If 'true', this is a system instruction.
-	// 9. PC: Program counter of the instruction.
-	//
-	// Return value:
-	// Return the instruction's index in the Active List.
-	//
-	// Tips:
-	//
-	// Before dispatching the instruction into the Active List, assert
-	// that the Active List isn't full: it is the user's responsibility
-	// to avoid a structural hazard by calling stall_dispatch()
-	// in advance.
-	/////////////////////////////////////////////////////////////////////
-	uint64_t dispatch_inst(bool dest_valid,
-	                       uint64_t log_reg,
-	                       uint64_t phys_reg,
-	                       bool load,
-	                       bool store,
-	                       bool branch,
-	                       bool amo,
-	                       bool csr,
-	                       uint64_t PC);
 
 	/////////////////////////////////////////////////////////////////////
 	// Test the ready bit of the indicated physical register.
@@ -609,19 +420,11 @@ public:
 	void unmap(uint64_t phys_reg);
 	void try_reg_reclamation(uint64_t phys_reg);
 	void set_exception(uint64_t chckpnt_ID);
+	bool get_exception(uint64_t chckpnt_ID);
 
-	/////////////////////////////////////////////////////////////////////
-	// Functions for individually setting the exception bit,
-	// load violation bit, branch misprediction bit, and
-	// value misprediction bit, of the indicated entry in the Active List.
-	/////////////////////////////////////////////////////////////////////
-	void set_load_violation(uint64_t AL_index);
-	void set_branch_misprediction(uint64_t AL_index);
-	void set_value_misprediction(uint64_t AL_index);
-
-	/////////////////////////////////////////////////////////////////////
-	// Query the exception bit of the indicated entry in the Active List.
-	/////////////////////////////////////////////////////////////////////
-	bool get_exception(uint64_t AL_index);
+	void set_load_violation(uint64_t chckpnt_ID);
+	//TODO: CPR delete
+	//void set_branch_misprediction(uint64_t AL_index);
+	//void set_value_misprediction(uint64_t AL_index);
 };
 

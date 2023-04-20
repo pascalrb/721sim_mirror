@@ -91,10 +91,11 @@ void pipeline_t::dispatch() {
    assert(i > 0);			// If we reached this point, there should be at least one instruction in the dispatch bundle.
    assert(i <= dispatch_width);		// There cannot be more than "dispatch_width" instructions in the dispatch bundle.
 
+   //TODO: CPR no longer need 
    // FIX_ME #6 BEGIN
-   if(REN->stall_dispatch(i)){
-      return;
-   }
+   //if(REN->stall_dispatch(i)){
+   //   return;
+   //}
    // FIX_ME #6 END
 
    //
@@ -137,21 +138,22 @@ void pipeline_t::dispatch() {
       // 3. When you dispatch the instruction into the Active List, remember to *update* the instruction's
       //    payload with its Active List index.
 
+      //TODO: CPR no longer need 
       // FIX_ME #7 BEGIN
-      load_flag      = IS_LOAD(PAY.buf[index].flags);
-      store_flag     = IS_STORE(PAY.buf[index].flags);
-      branch_flag    = IS_BRANCH(PAY.buf[index].flags);
-      amo_flag       = IS_AMO(PAY.buf[index].flags);
-      csr_flag       = IS_CSR(PAY.buf[index].flags);
-      PAY.buf[index].AL_index = REN->dispatch_inst(PAY.buf[index].C_valid,
-                                                   PAY.buf[index].C_log_reg,
-                                                   PAY.buf[index].C_phys_reg,
-                                                   load_flag, 
-                                                   store_flag,
-                                                   branch_flag,
-                                                   amo_flag, 
-                                                   csr_flag,
-                                                   PAY.buf[index].pc);
+      //load_flag      = IS_LOAD(PAY.buf[index].flags);
+      //store_flag     = IS_STORE(PAY.buf[index].flags);
+      //branch_flag    = IS_BRANCH(PAY.buf[index].flags);
+      //amo_flag       = IS_AMO(PAY.buf[index].flags);
+      //csr_flag       = IS_CSR(PAY.buf[index].flags);
+      //PAY.buf[index].AL_index = REN->dispatch_inst(PAY.buf[index].C_valid,
+      //                                             PAY.buf[index].C_log_reg,
+      //                                             PAY.buf[index].C_phys_reg,
+      //                                             load_flag, 
+      //                                             store_flag,
+      //                                             branch_flag,
+      //                                             amo_flag, 
+      //                                             csr_flag,
+      //                                             PAY.buf[index].pc);
       // FIX_ME #7 END
 
       // FIX_ME #8
