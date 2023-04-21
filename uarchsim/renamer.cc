@@ -268,6 +268,8 @@ void renamer::set_complete(uint64_t checkpoint_ID)
 {
     //printf("set_complete()\n");
 
+    assert(CPBuffer.CPBuffEntries[checkpoint_ID].uncompleted_instr_count > 0);
+
     CPBuffer.CPBuffEntries[checkpoint_ID].uncompleted_instr_count--;
 }
 
@@ -380,21 +382,25 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
 {
     //printf("precommit(): \n");
 
-    //check if there is no other checkpoint after oldest checkpoint
-    if (CPBuffer.head < UNRESOLVED_BRANCHES_SIZE-1){
-        if(CPBuffer.head + 1 == CPBuffer.tail){
-            return false;
-        }
-    }else{ //next entry after head is back to 0
-        if(CPBuffer.tail == 0){
-            //there is no other checkpoint after oldest checkpoint
-            return false;
+    if(CPBuffer.CPBuffEntries[CPBuffer.head].uncompleted_instr_count != 0){
+        return false;
+    }
+
+    if(!CPBuffer.CPBuffEntries[CPBuffer.head].has_except_instr){
+
+        //check if there is no other checkpoint after oldest checkpoint
+        if (CPBuffer.head < UNRESOLVED_BRANCHES_SIZE-1){
+            if(CPBuffer.head + 1 == CPBuffer.tail){
+                return false;
+            }
+        }else{ //next entry after head is back to 0
+            if(CPBuffer.tail == 0){
+                //there is no other checkpoint after oldest checkpoint
+                return false;
+            }
         }
     }
 
-    if(CPBuffer.CPBuffEntries[CPBuffer.head].uncompleted_instr_count > 0){
-        return false;
-    }
 
     chkpt_id        = CPBuffer.head;
     num_loads       = CPBuffer.CPBuffEntries[CPBuffer.head].load_count;

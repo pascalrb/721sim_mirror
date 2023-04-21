@@ -119,6 +119,9 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             // Flush PAY.
             PAY.clear();
 
+            update_timer(&state, 1); // Update timer by 1 retired instr.
+            assert(instret <= instret_limit);
+
          }else{
             RETSTATE.state = RETIRE_BULK_COMMIT;
             RETSTATE.log_reg = 0;

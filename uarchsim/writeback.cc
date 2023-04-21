@@ -96,8 +96,9 @@ void pipeline_t::writeback(unsigned int lane_number) {
 //         }
 //TODO: get rid of after testing/debugging
 //         else {
+         //if(!PERFECT_BRANCH_PRED && PAY.buf[index].next_pc != PAY.buf[index].c_next_pc){
 
-         if(!PERFECT_BRANCH_PRED && PAY.buf[index].next_pc != PAY.buf[index].c_next_pc){
+         if(PAY.buf[index].good_instruction && PAY.buf[index].next_pc != PAY.buf[index].c_next_pc){
             // Branch was mispredicted.
 
             // Roll-back the Fetch Unit.
