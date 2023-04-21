@@ -380,9 +380,9 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
 {
     //printf("precommit(): \n");
 
-    if (CPBuffer.head < UNRESOLVED_BRANCHES_SIZE-2){
+    //check if there is no other checkpoint after oldest checkpoint
+    if (CPBuffer.head < UNRESOLVED_BRANCHES_SIZE-1){
         if(CPBuffer.head + 1 == CPBuffer.tail){
-            //there is no other checkpoint after oldest checkpoint
             return false;
         }
     }else{ //next entry after head is back to 0
@@ -472,6 +472,8 @@ void renamer::squash()
 
 void renamer::inc_usage_counter(uint64_t phys_reg)
 {
+    assert(PRFUsageCounter.size() < PHYS_REG_SIZE);
+
     PRFUsageCounter[phys_reg]++;
 }
 
@@ -480,6 +482,7 @@ void renamer::dec_usage_counter(uint64_t phys_reg)
     assert(PRFUsageCounter[phys_reg] > 0);
 
     PRFUsageCounter[phys_reg]--;
+
     //Aggressive Register reclammation
     try_reg_reclamation(phys_reg);
 }
@@ -501,7 +504,7 @@ void renamer::unmap(uint64_t phys_reg)
 void renamer::try_reg_reclamation(uint64_t phys_reg)
 {
     if(PRFUnnmappedBits[phys_reg] && PRFUsageCounter[phys_reg] == 0){
-        //TODO: debug assert; remove after project is up and running
+        //TODO: debug assert; will slow prog; remove after project is up and running;
         // assert that phys_reg is not already in FL
         assert(find(FL.begin(), FL.end(), phys_reg) == FL.end());
         assert(FL.size() <= FL_SIZE);
@@ -520,7 +523,11 @@ void renamer::set_load_violation(uint64_t checkpoint_ID)
 {
     //printf("set_load_violation()\n");
 
-    CPBuffer.CPBuffEntries[checkpoint_ID].is_load_violated = true;
+    //TODO: For now, in phase 1, there should not be any load violations 
+    //      hence no call to this function
+    assert(0);
+
+    //CPBuffer.CPBuffEntries[checkpoint_ID].is_load_violated = true;
     CPBuffer.CPBuffEntries[checkpoint_ID].has_except_instr = true;
 }
 
