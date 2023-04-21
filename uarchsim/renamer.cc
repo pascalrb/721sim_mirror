@@ -3,6 +3,7 @@
 #include <assert.h>     
 #include <stdio.h>  //p_rintf
 #include <iostream> //c_out
+#include <algorithm>    // std::find
 
 //using namespace std;
 
@@ -512,7 +513,7 @@ void renamer::try_reg_reclamation(uint64_t phys_reg)
     if(PRFUnnmappedBits[phys_reg] && PRFUsageCounter[phys_reg] == 0){
         //TODO: CPR debug assert; will slow prog; remove after project is up and running;
         // assert that phys_reg is not already in FL
-        assert(find(FL.begin(), FL.end(), phys_reg) == FL.end());
+        assert(std::find(FL.begin(), FL.end(), phys_reg) == FL.end());
         assert(FL.size() <= FL_SIZE);
         FL.push_back(phys_reg);
     }

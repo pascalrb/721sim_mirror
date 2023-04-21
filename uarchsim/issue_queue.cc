@@ -299,12 +299,13 @@ void issue_queue::flush() {
 	youngest = -1;
 }
 
-void issue_queue::clear_branch_bit(unsigned int branch_ID) {
-	for (unsigned int i = 0; i < size; i++) {
-		//TODO: CPR
-		CLEAR_BIT(q[i].checkpoint_ID, bbranch_ID);
-	}
-}
+//TODO: CPR no longer need
+//void issue_queue::clear_branch_bit(unsigned int branch_ID) {
+//	for (unsigned int i = 0; i < size; i++) {
+//		//TODO: CPR
+//		CLEAR_BIT(q[i].checkpoint_ID, bbranch_ID);
+//	}
+//}
 
 void issue_queue::squash(uint64_t squash_mask) {
 	for (unsigned int i = 0; i < size; i++) {

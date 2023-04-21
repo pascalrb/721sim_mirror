@@ -80,9 +80,9 @@
 
 #define BIT_IS_ZERO(x,i)		(((x) & (((unsigned long long)1) << i)) == 0)
 #define BIT_IS_ONE(x,i)			(((x) & (((unsigned long long)1) << i)) != 0)
-#define IS_CHKPT_IN_MASK(i,x)	(((((unsigned long long)1) << i) & (x)) != 0)
 #define SET_BIT(x,i)		  	(x |= (((unsigned long long)1) << i))
 #define CLEAR_BIT(x,i)			(x &= ~(((unsigned long long)1) << i))
+#define IS_CHKPT_IN_MASK(i,x)	(((((unsigned long long)1) << i) & (x)) != 0)
 
 //////////////////////////////////////////////////////////////////////////////
 

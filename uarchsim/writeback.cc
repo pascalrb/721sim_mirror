@@ -156,7 +156,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             // Rollback PAY to the point of the branch.
             PAY.rollback(index);
          }
- //     }
+      }
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       // FIX_ME #16
