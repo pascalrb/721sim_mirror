@@ -270,7 +270,7 @@ void issue_queue::flush() {
 	for (unsigned int i = 0; i < size; i++) {
 		if (q[i].valid) {
 			//squashing instr
-			//TODO: double check that I'm accessing the correct object instance of PAY
+			//TODO: CPR double check that I'm accessing the correct object instance of PAY
 			if(proc->PAY.buf[q[i].index].A_valid){
 				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
 			}
@@ -301,6 +301,7 @@ void issue_queue::flush() {
 
 void issue_queue::clear_branch_bit(unsigned int branch_ID) {
 	for (unsigned int i = 0; i < size; i++) {
+		//TODO: CPR
 		CLEAR_BIT(q[i].checkpoint_ID, bbranch_ID);
 	}
 }
@@ -310,7 +311,7 @@ void issue_queue::squash(uint64_t squash_mask) {
 		if (q[i].valid && IS_CHKPT_IN_MASK(q[i].checkpoint_ID, squash_mask)) {
 			//squashing instr
 			//if(PAY.buf[q[i].index].A_valid){
-			//TODO: double check that I'm accessing the correct object instance of PAY
+			//TODO: CPR double check that I'm accessing the correct object instance of PAY
 			if(proc->PAY.buf[q[i].index].A_valid){
 				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
 			}

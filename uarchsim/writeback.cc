@@ -34,7 +34,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
       //   logically after the branch.
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-      //TODO: CPR; this used to only be set for branch mispredictions
+      //TODO: CPR this used to only be set for branch mispredictions
       //       we checkpoint for more reasons now so we might miss some checkpoint=true instances 
       if (PAY.buf[index].checkpoint) {
 
@@ -94,7 +94,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
 //            REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, true);
 //            // FIX_ME #15b END
 //         }
-//TODO: get rid of after testing/debugging
+//TODO: CPR get rid of after testing/debugging
 //         else {
          //if(!PERFECT_BRANCH_PRED && PAY.buf[index].next_pc != PAY.buf[index].c_next_pc){
 
@@ -123,7 +123,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    This will restore the RMT, FL, and AL, and also free this and future checkpoints... etc.
 
             // FIX_ME #15c BEGIN
-            //TODO: update comment
+            //TODO: CPR update comment
             //REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, false);
 
             uint64_t total_loads, total_stores, total_branches;
@@ -146,7 +146,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //      indicates whether or not the branch was predicted correctly: in this case it is not-correct.
             //    * See pipeline.h for details about the two arguments of resolve().
 
-            //TODO: update comment
+            //TODO: CPR update comment
             // FIX_ME #15d BEGIN
             //resolve(PAY.buf[index].branch_ID, false);
 

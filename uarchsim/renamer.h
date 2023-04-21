@@ -20,13 +20,13 @@ private:
     uint64_t FL_SIZE;                       // Number of entries in Free List
 
 
-    // log_regs: 64, phys_regs: 320, AL_Size: 256
+	// log_regs: 64, phys_regs: 320, AL_Size: 256
 
-    //TODO: make sure all ^^ are initialized
+	//TODO: CPR make sure all ^^ are initialized
 
-	//TODO: review all the TODOs in renamer.h and renamer.cc
-	//TODO: order the "Structure X:"
-	//TODO: update comments in rename.cc, renamer.cc, renamer.h
+	//TODO: CPR review all the TODOs in renamer.h and renamer.cc
+	//TODO: CPR order the "Structure X:"
+	//TODO: CPR update comments in rename.cc, renamer.cc, renamer.h
 	//						squash.cc, pipeline.h, pipeline.cc, etc
 
 	/////////////////////////////////////////////////////////////////////
@@ -71,7 +71,7 @@ private:
 	// Notes:
 	// * Structure includes head, tail, and their phase bits.
 	/////////////////////////////////////////////////////////////////////
-	//TODO: update comment
+	//TODO: CPR update comment
     vector<uint64_t> FL;
 
 	/////////////////////////////////////////////////////////////////////
@@ -182,7 +182,7 @@ public:
 	// Return "true" (stall) if there aren't enough free checkpoints
 	// for all branches in the current rename bundle.
 	/////////////////////////////////////////////////////////////////////
-	//bool stall_branch(uint64_t bundle_branch); //TODO: no longer need
+	//bool stall_branch(uint64_t bundle_branch); //  no longer need
 
 	/////////////////////////////////////////////////////////////////////
 	// The Rename Stage must stall if there aren't enough 
@@ -243,7 +243,7 @@ public:
 	// 2. checkpointed Free List head pointer and its phase bit
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
-	//TODO: update comment
+	//TODO: CPR update comment
 	void checkpoint();
 
 	void free_checkpoint();
@@ -338,7 +338,7 @@ public:
 	//   reaches the head of the Active List. We don’t want or need
 	//   that because we immediately recover within this function.)
 	/////////////////////////////////////////////////////////////////////
-	//TODO: update comment
+	//TODO: CPR update comment
 	uint64_t rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
 				  	  uint64_t &total_stores, uint64_t &total_branches);
 
@@ -374,7 +374,7 @@ public:
 	// * csr flag (whether or not instr. is a system instruction)
 	// * program counter of the instruction
 	/////////////////////////////////////////////////////////////////////
-	//TODO: update comment
+	//TODO: CPR update comment
 	bool precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores,
                    uint64_t &num_branches, bool &amo, bool &csr, bool &exception);
 
@@ -395,7 +395,7 @@ public:
 	// This is why you should assert() that it is valid to commit the
 	// head instruction and otherwise cause the simulator to exit.
 	/////////////////////////////////////////////////////////////////////
-	//TODO: update comment
+	//TODO: CPR update comment
 	void commit(uint64_t log_reg);
 
 	//////////////////////////////////////////////////////////////////////

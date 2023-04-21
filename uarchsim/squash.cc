@@ -152,7 +152,7 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 	for (i = 0; i < dispatch_width; i++) {
 		RENAME2[i].valid = false;
 		
-		//TODO: does selectively decrement usage counter?
+		//TODO: CPR selectively decrement usage counter?
 		// When an instruction (that's part of a bundle) executes into an offending
 		// 	instruction, what happens to the bundle that were renamed?
 		//		(execute() stage gets called before rename() stage so may not need to 

@@ -24,7 +24,7 @@ renamer::renamer(uint64_t n_log_regs,
     LOGREG_RMT_AMT_SIZE         = n_log_regs;
     PHYS_REG_SIZE               = n_phys_regs;
     UNRESOLVED_BRANCHES_SIZE    = n_branches;
-    //AL_SIZE                     = n_active;       //TODO: may no longer need
+    //AL_SIZE                     = n_active;       //TODO: CPR may no longer need
     FL_SIZE                     = n_phys_regs - n_log_regs;
 
     // PRF init. Just allocate space for it
@@ -355,7 +355,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
         }
     }
 
-    //TODO: do we need to update the PRF_rb?
+    //TODO: CPR do we need to update the PRF_rb?
     //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
     //    //update PRF ready bit to indicate that phys_reg is ready to be picked up
     //    set_ready(i);
@@ -501,7 +501,7 @@ void renamer::unmap(uint64_t phys_reg)
 {
     PRFUnnmappedBits[phys_reg] = true;
     
-    //TODO: can this be called multiple times for the same reg??
+    //TODO: CPR can this be called multiple times for the same reg??
     //  (the same phys reg can be 1-0 for multiple times that unmap 
     // gets called. This will lead to duplicate push to FL)
     try_reg_reclamation(phys_reg);
@@ -510,7 +510,7 @@ void renamer::unmap(uint64_t phys_reg)
 void renamer::try_reg_reclamation(uint64_t phys_reg)
 {
     if(PRFUnnmappedBits[phys_reg] && PRFUsageCounter[phys_reg] == 0){
-        //TODO: debug assert; will slow prog; remove after project is up and running;
+        //TODO: CPR debug assert; will slow prog; remove after project is up and running;
         // assert that phys_reg is not already in FL
         assert(find(FL.begin(), FL.end(), phys_reg) == FL.end());
         assert(FL.size() <= FL_SIZE);
@@ -529,7 +529,7 @@ void renamer::set_load_violation(uint64_t checkpoint_ID)
 {
     //printf("set_load_violation()\n");
 
-    //TODO: For now, in phase 1, there should not be any load violations 
+    //TODO: CPR For now, in phase 1, there should not be any load violations 
     //      hence no call to this function
     assert(0);
 

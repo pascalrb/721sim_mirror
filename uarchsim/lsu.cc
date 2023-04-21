@@ -659,7 +659,7 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 
 	for (unsigned int i = 0; i < lq_size; i++) {
 		if (LQ[i].addr_avail && !LQ[i].value_avail) {
-			//TODO: double check that I'm accessing the correct object instance of PAY
+			//TODO: CPR double check that I'm accessing the correct object instance of PAY
 			if(proc->PAY.buf[LQ[i].pay_index].A_valid){
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
 			}
@@ -845,7 +845,7 @@ void lsu::flush() {
 
 	for (unsigned int i = 0; i < lq_size; i++) {
 		if (LQ[i].addr_avail && !LQ[i].value_avail) {
-			//TODO: double check that I'm accessing the correct object instance of PAY
+			//TODO: CPR double check that I'm accessing the correct object instance of PAY
 			if(proc->PAY.buf[LQ[i].pay_index].A_valid){
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
 			}
@@ -872,7 +872,7 @@ void lsu::flush() {
 
 	for (unsigned int i = 0; i < sq_size; i++) {
 		//if (SQ[i].valid) {
-		//	//TODO: double check that I'm accessing the correct object instance of PAY
+		//	//TODO: CPR double check that I'm accessing the correct object instance of PAY
 		//	if(proc->PAY.buf[SQ[i].pay_index].A_valid){
 		//		proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].A_phys_reg);
 		//	}

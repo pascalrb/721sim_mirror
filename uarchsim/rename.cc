@@ -86,7 +86,7 @@ void pipeline_t::rename2() {
       // 3. The instruction's payload has all the information you need to count resource needs.
       //    There is a flag in the instruction's payload that *directly* tells you if this instruction needs a checkpoint.
       //    Another field indicates whether or not the instruction has a destination register.
-      //TODO: update comment
+      //TODO: CPR update comment
 
       // FIX_ME #1 BEGIN
       if(PAY.buf[index].C_valid){
@@ -94,7 +94,7 @@ void pipeline_t::rename2() {
       }
       // FIX_ME #1 END
 
-      //TODO: might need to revise this logic
+      //TODO: CPR might need to revise this logic
       if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
          if(instr_bw_chkpt == 0){
             bundle_chkpts += 1;
@@ -123,7 +123,7 @@ void pipeline_t::rename2() {
       }
 
       instr_bw_chkpt++;
-      //TODO: low confidence branch
+      //TODO: CPR low confidence branch
    }
 
 
@@ -168,7 +168,7 @@ void pipeline_t::rename2() {
       // 3. When you rename a logical register to a physical register, remember to *update* the instruction's payload with the physical register specifier,
       //    so that the physical register specifier can be used in subsequent pipeline stages.
 
-      //TODO: do I set PAY.buf[index].checkpoint to true after each checkpoint???
+      //TODO: CPR do I set PAY.buf[index].checkpoint to true after each checkpoint???
 
       if(IS_AMO(PAY.buf[index].flags) || IS_CSR(PAY.buf[index].flags)){
          if(instr_renamed_since_last_checkpoint > 0){
@@ -231,7 +231,7 @@ void pipeline_t::rename2() {
             }
          }
       }
-      //TODO: low confidence branch
+      //TODO: CPR low confidence branch
 
 
    // FIX_ME #4
@@ -247,7 +247,7 @@ void pipeline_t::rename2() {
 
    // FIX_ME #4 BEGIN
    //RENAME2[i].branch_mask = REN->get_branch_mask();
-   //TODO: may no longer need; delete member from structure!
+   //TODO: CPR may no longer need; delete member from structure!
    // FIX_ME #4 END
    
 
@@ -263,7 +263,7 @@ void pipeline_t::rename2() {
 //      // FIX_ME #5 BEGIN
 //      if(PAY.buf[index].checkpoint){
 //         PAY.buf[index].branch_ID = REN->checkpoint();
-//         //TODO: may need to delete 
+//         //TODO: CPR may need to delete 
 //      }
 //      // FIX_ME #5 END
    }
