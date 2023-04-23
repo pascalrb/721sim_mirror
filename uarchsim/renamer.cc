@@ -22,6 +22,7 @@ renamer::renamer(uint64_t n_log_regs,
     assert(n_active > 0);
 
     // initializing private vars  
+    //TODO: CPR change name of var
     LOGREG_RMT_AMT_SIZE         = n_log_regs;
     PHYS_REG_SIZE               = n_phys_regs;
     UNRESOLVED_BRANCHES_SIZE    = n_branches;
@@ -44,6 +45,7 @@ renamer::renamer(uint64_t n_log_regs,
     for(uint64_t i=0; i<LOGREG_RMT_AMT_SIZE; i++){
         //initially RMT point to the first [n_log_regs] regs of the PRF
         RMT.push_back(i);   
+        PRFUsageCounter[i]++;
 
         //Phys Regs mapped to RMT need their unmapped bit set to false
         PRFUnnmappedBits[i] = false;
@@ -73,7 +75,6 @@ renamer::renamer(uint64_t n_log_regs,
     CPBuffer.CPBuffEntries[CPBuffer.tail].has_except_instr          = false;
     CPBuffer.tail++; 
 
-
     //printf("    AMT: %lu, RMT: %lu, AL: %lu, FL: %lu, BCs: %lu\n", AMT.size(), RMT.size(), AL.AL_entries.size(), FL.fl_regs.size(), BCs.size());
 }
 
@@ -87,6 +88,7 @@ renamer::~renamer()
 bool renamer::stall_reg(uint64_t bundle_dst)
 {
     //printf("stall_reg()\n");
+    //TODO: CPR debug. remove after
     int db_fl_size;
     db_fl_size = FL.size();
 
@@ -347,9 +349,13 @@ void renamer::dec_usage_counter(uint64_t phys_reg)
 {
     //TODO: CPR this blocks the program but for some reason 
     //  removing it passes it
-    //assert(PRFUsageCounter[phys_reg] > 0);
+    assert(PRFUsageCounter[phys_reg] > 0);
 
     PRFUsageCounter[phys_reg]--;
+
+    //TODO: CPR debug. remove after
+    int db_use;
+    db_use = PRFUsageCounter[phys_reg];
 
     //Aggressive Register reclammation
     try_reg_reclamation(phys_reg);
@@ -361,12 +367,16 @@ void renamer::map(uint64_t phys_reg)
 }
 void renamer::unmap(uint64_t phys_reg)
 {
-    PRFUnnmappedBits[phys_reg] = true;
-    
-    //TODO: CPR can this be called multiple times for the same reg??
-    //  (the same phys reg can be 1-0 for multiple times that unmap 
-    // gets called. This will lead to duplicate push to FL)
-    try_reg_reclamation(phys_reg);
+    //Only check if unmapped bit is going from 0 to 1
+    // otherwise, it's already unmapped, no need to try_reg_reclamation()
+    if(!PRFUnnmappedBits[phys_reg]){
+        PRFUnnmappedBits[phys_reg] = true;
+
+        //TODO: CPR can this be called multiple times for the same reg??
+        //  (the same phys reg can be 1-0 for multiple times that unmap 
+        // gets called. This will lead to duplicate push to FL)
+        try_reg_reclamation(phys_reg);
+    }
 }
 
 void renamer::try_reg_reclamation(uint64_t phys_reg)
@@ -376,8 +386,12 @@ void renamer::try_reg_reclamation(uint64_t phys_reg)
         // assert that phys_reg is not already in FL
         assert(std::find(FL.begin(), FL.end(), phys_reg) == FL.end());
         
+        //TODO: CPR debug. remove after
+        int db_fl_size;
+        db_fl_size = FL.size();
+        
         //asserting that we're not too aggressive 
-        assert(FL.size() <= FL_SIZE);
+        assert(FL.size() < FL_SIZE);
 
         FL.push_back(phys_reg);
     }
