@@ -547,7 +547,7 @@ bool pipeline_t::step_micro(size_t instret_limit, size_t& instret)
         }
         //TODO: CPR change to for loop
         //for (lane_number = 0; lane_number < RETIRE_WIDTH; lane_number++) {
-        //  retire(instret, instret_limit);            // Retire Stage
+        //  retire(instret);            // Retire Stage
         //  update_timer(&state, instret-prev_instret);
         //  prev_instret = instret;
         //  // Halt retirement if its time for an HTIF tick as this will change state

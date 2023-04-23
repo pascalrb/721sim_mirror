@@ -49,6 +49,7 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 	for (i = 0; i < dispatch_width; i++) {
 		if(DISPATCH[i].valid){
 			DISPATCH[i].valid = false;
+
 			if(PAY.buf[DISPATCH[i].index].A_valid){
 				REN->dec_usage_counter(PAY.buf[DISPATCH[i].index].A_phys_reg);
 			}
@@ -95,9 +96,9 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 		}
 
 		for (j = 0; j < Execution_Lanes[i].ex_depth; j++){
-		   Execution_Lanes[i].ex[j].valid = false;
-
 			if (Execution_Lanes[i].ex[j].valid) {
+		   		Execution_Lanes[i].ex[j].valid = false;
+
 				if(PAY.buf[Execution_Lanes[i].ex[j].index].A_valid){
 					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
 				}
@@ -208,15 +209,15 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 		// Execute Stage:
 		for (j = 0; j < Execution_Lanes[i].ex_depth; j++) {
 			if (Execution_Lanes[i].ex[j].valid && IS_CHKPT_IN_MASK(Execution_Lanes[i].ex[j].checkpoint_ID, squash_mask)) {
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].A_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
-				}
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].B_phys_reg);
-				}
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].D_phys_reg);
-				}
+				//if(PAY.buf[Execution_Lanes[i].ex[j].index].A_valid){
+				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
+				//}
+				//if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
+				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].B_phys_reg);
+				//}
+				//if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
+				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].D_phys_reg);
+				//}
 				if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
 					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].C_phys_reg);
 				}
@@ -227,18 +228,18 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 
 		// Writeback Stage:
 		if (Execution_Lanes[i].wb.valid && IS_CHKPT_IN_MASK(Execution_Lanes[i].wb.checkpoint_ID, squash_mask)) {
-			if(PAY.buf[Execution_Lanes[i].wb.index].A_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].A_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].B_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].D_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].C_phys_reg);
-			}
+			//if(PAY.buf[Execution_Lanes[i].wb.index].A_valid){
+			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].A_phys_reg);
+			//}
+			//if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
+			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].B_phys_reg);
+			//}
+			//if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
+			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].D_phys_reg);
+			//}
+			//if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
+			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].C_phys_reg);
+			//}
 
 			Execution_Lanes[i].wb.valid = false;
 		}

@@ -13,10 +13,11 @@ static void update_timer(state_t* state, size_t instret)
 }
 
 void pipeline_t::retire(size_t& instret, size_t instret_limit) {
-   bool head_valid;
+   bool proceed;
    //bool completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr;
    //TODO: CPR delete
-   bool load, store;
+   bool load, store;//, head_valid;
+   int ret_cnt;
    reg_t offending_PC;
 
    bool amo_success;
@@ -59,14 +60,16 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
 
    // FIX_ME #17a BEGIN
    //head_valid = REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr, offending_PC);
-   //TODO: CPR delete
-   bool proceed = REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, 
-                                 RETSTATE.num_stores_left, RETSTATE.num_branches_left,
-                                 RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
+   //TODO: CPR update comment
    // FIX_ME #17a END
 
    switch(RETSTATE.state){
       case RETIRE_IDLE:
+         proceed = REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, 
+                                       RETSTATE.num_stores_left, RETSTATE.num_branches_left,
+                                       RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
+         if(!proceed) return;
+         
          // Sanity checks of the 'amo' and 'csr' flags. 
          assert(!RETSTATE.amo || IS_AMO(PAY.buf[PAY.head].flags)); 
          assert(!RETSTATE.csr || IS_CSR(PAY.buf[PAY.head].flags)); 
@@ -104,6 +107,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             // in the ISA.
             // This is a serialize trap - Refetch the CSR instruction
             reg_t jump_PC;
+            offending_PC = PAY.buf[PAY.head].pc;
             if (trap->cause() == CAUSE_CSR_INSTRUCTION) {
                jump_PC = offending_PC;
             } 
@@ -122,7 +126,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
 
             // Squash the pipeline.
             squash_complete(jump_PC);
-            //instr_renamed_since_last_checkpoint = 0;  //TODO: CPR
+            instr_renamed_since_last_checkpoint = 0;  //TODO: CPR
             inc_counter(recovery_count);
 
             // Flush PAY.
@@ -131,6 +135,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             update_timer(&state, 1); // Update timer by 1 retired instr.
             assert(instret <= instret_limit);
 
+            //return //nothing after switch stmnt; redundant
          }else{
             RETSTATE.state = RETIRE_BULK_COMMIT;
             RETSTATE.log_reg = 0;
@@ -139,9 +144,8 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
          break;
       
       case RETIRE_BULK_COMMIT:
-         int ret_cnt;
          ret_cnt = 0;
-         while(RETSTATE.num_loads_left > 0 || ret_cnt < RETIRE_WIDTH){
+         while(RETSTATE.num_loads_left > 0 && ret_cnt < RETIRE_WIDTH){
             LSU.train(true);  
             amo_success = LSU.commit(true, RETSTATE.amo); 
             assert(amo_success);     // Assert store-conditionals (SC) are successful.
@@ -150,7 +154,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             ret_cnt++;
          }
          ret_cnt = 0;
-         while(RETSTATE.num_stores_left > 0 || ret_cnt < RETIRE_WIDTH){
+         while(RETSTATE.num_stores_left > 0 && ret_cnt < RETIRE_WIDTH){
             LSU.train(false);  
             amo_success = LSU.commit(false, RETSTATE.amo); 
             assert(amo_success);     // Assert store-conditionals (SC) are successful.
@@ -159,14 +163,14 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             ret_cnt++;
          }
          ret_cnt = 0;
-         while(RETSTATE.num_branches_left > 0 || ret_cnt < RETIRE_WIDTH){
+         while(RETSTATE.num_branches_left > 0 && ret_cnt < RETIRE_WIDTH){
             FetchUnit->commit();
 
             RETSTATE.num_branches_left--;
             ret_cnt++;
          }
          ret_cnt = 0;
-         while(RETSTATE.log_reg < NXPR+NFPR || ret_cnt < RETIRE_WIDTH){
+         while(RETSTATE.log_reg < (NXPR+NFPR) && ret_cnt < RETIRE_WIDTH){
             REN->commit(RETSTATE.log_reg);
 
             RETSTATE.log_reg++;
@@ -220,7 +224,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             // the next cycle, if it's time for an HTIF tick,
             // as this will change state.
             if(instret == instret_limit)
-               return;
+               return;              // Pause and remain in the state RETIRE_FINALIZE
          }
 
          RETSTATE.state = RETIRE_IDLE;
@@ -268,7 +272,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
 //	      // If the committed instruction is a load or store, signal the LSU to commit its oldest load or store, respectively.
 //         if (load || store) {
 //            assert(load != store);   // Make sure that the same instruction does not have both flags set.
-//	        LSU.train(load);	     // Train MDP and update stats.
+//	           LSU.train(load);	     // Train MDP and update stats.
 //            amo_success = LSU.commit(load, amo);
 //            assert(amo_success);     // Assert store-conditionals (SC) are successful.
 //         }

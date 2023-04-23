@@ -640,6 +640,11 @@ void fetchunit_t::commit() {
    bool pred_tag_phase;
    bq.pop(pred_tag, pred_tag_phase);
 
+
+   //TODO: CPR to be deleted
+   // Assert that the branch_pred_tag (pred_tag of the branch being committed from the pipeline) corresponds to the popped branch queue entry.
+   //assert(branch_pred_tag == ((pred_tag << 1) | (pred_tag_phase ? 1 : 0)));
+
    // Update the conditional branch predictor or indirect branch predictor.
    // Update measurements.
    uint64_t *cb_counters;	// FYI: The compiler forbids declaring these four local variables inside "case BTB_BRANCH:".

@@ -3,7 +3,7 @@
 
 using namespace std;
 
-#define MAX_UNRESOLVED_BRANCHES 8 //TODO: CPR change; was 64
+//#define MAX_UNRESOLVED_BRANCHES 8 //TODO: CPR change; was 64
 
 class renamer {
 private:

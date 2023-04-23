@@ -126,6 +126,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //TODO: CPR update comment
             //REN->resolve(PAY.buf[index].AL_index, PAY.buf[index].branch_ID, false);
 
+            //TODO: CPR do we use total_loads, total_stores, total_branches???
             uint64_t total_loads, total_stores, total_branches;
             squash_mask = REN->rollback(PAY.buf[index].checkpoint_ID, true, total_loads, total_stores, total_branches);
             instr_renamed_since_last_checkpoint = 0;
