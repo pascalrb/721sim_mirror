@@ -424,7 +424,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
     }else{
         //tail --> head (wrapped around)
         if(CPBuffer.head != CPBuffer.tail){
-            assert(chkpt_id >= CPBuffer.head && chkpt_id < CPBuffer.tail);
+            assert(chkpt_id >= CPBuffer.head || chkpt_id < CPBuffer.tail);
         }
         //if full (head == tail), chkpt_id can be anywhere
     }

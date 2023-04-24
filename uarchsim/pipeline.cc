@@ -533,97 +533,97 @@ bool pipeline_t::step_micro(size_t instret_limit, size_t& instret)
     }
     else {
 
-        /////////////////////////////////////////////////////////////
-        // 1 cycle of Pipeline.
-        /////////////////////////////////////////////////////////////
+      /////////////////////////////////////////////////////////////
+      // 1 cycle of Pipeline.
+      /////////////////////////////////////////////////////////////
 
-        size_t lane_number;
+      size_t lane_number;
 
-        unsigned int prev_commit_count = counter(commit_count);
-        retire(instret, instret_limit);            // Retire Stage
-        // Stop simulation if limit reached
-        if((counter(commit_count) >= stop_amt) && use_stop_amt){
-          return true;
+      unsigned int prev_commit_count = counter(commit_count);
+      retire(instret, instret_limit);            // Retire Stage
+      // Stop simulation if limit reached
+      if((counter(commit_count) >= stop_amt) && use_stop_amt){
+        return true;
+      }
+      //TODO: CPR change to for loop
+      //for (lane_number = 0; lane_number < RETIRE_WIDTH; lane_number++) {
+      //  retire(instret);            // Retire Stage
+      //  update_timer(&state, instret-prev_instret);
+      //  prev_instret = instret;
+      //  // Halt retirement if its time for an HTIF tick as this will change state
+      //  if(instret == instret_limit)
+      //    break;
+      //  // Stop simulation if limit reached
+      //  if((counter(commit_count) >= stop_amt) && use_stop_amt){
+      //    //stats->dump_knobs();
+      //    //stats->dump_counters();
+      //    //stats->dump_rates();
+      //    return true;
+      //  }
+      //}
+
+      // Increment the retired bundle count if even a single instruction retired
+      if(counter(commit_count) > prev_commit_count)
+        inc_counter(retired_bundle_count);
+
+      //REN_INT->dump_al(this,PAY,2,regread_log);
+      for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
+        writeback(lane_number);    // Writeback Stage
+      }
+      load_replay();
+      for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
+        execute(lane_number);    // Execute Stage
+      }
+      for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
+        register_read(lane_number);    // Register Read Stage
+      }
+      schedule();           // Schedule Stage
+      dispatch();           // Dispatch Stage
+      rename2();            // Rename Stage
+      rename1();            // Rename Stage
+      decode();             // Decode Stage
+      //// FETCH will insert NOPs instead of fetching real instructions
+      //// from cache if a fetch_exception is pending. This is to make
+      //// dispatch never gets stalled due to the absense of a full bundle
+      //// in the FETCH QUEUS.his is sort of like a stall.
+      //if(!fetch_exception){
+        fetch();            // Fetch Stage
+      //}
+
+      /////////////////////////////////////////////////////////////
+      // Miscellaneous stuff that must be processed every cycle.
+      /////////////////////////////////////////////////////////////
+
+      // Go to the next simulator cycle.
+      //next_cycle();
+      cycle++;
+      inc_counter(cycle_count);
+
+      if(cycle > (uint64_t)logging_on_at)
+        logging_on = true;
+
+      static uint64_t grading_plateau = 1000;
+      if (num_insn >= grading_plateau) {
+        INFO("GRADING PLATEAU: %lu", grading_plateau);
+        grading_plateau *= 10;
+	    }
+
+      // For detecting deadlock, and monitoring progress.
+      if (MOD(cycle, 0x400000) == 0) {
+        INFO("(cycle = %" PRIcycle " ) num_insn = %.0f\tIPC = %.2f",
+              cycle,
+              (double)num_insn,
+              (double)num_insn/(double)cycle);
+        //stats->dump_counters();
+        //stats->dump_rates();
+
+        static uint64_t num_insn_last_beat = 0;
+        if (num_insn == num_insn_last_beat) {
+          INFO("DEADLOCK.");
+          assert(0);
         }
-        //TODO: CPR change to for loop
-        //for (lane_number = 0; lane_number < RETIRE_WIDTH; lane_number++) {
-        //  retire(instret);            // Retire Stage
-        //  update_timer(&state, instret-prev_instret);
-        //  prev_instret = instret;
-        //  // Halt retirement if its time for an HTIF tick as this will change state
-        //  if(instret == instret_limit)
-        //    break;
-        //  // Stop simulation if limit reached
-        //  if((counter(commit_count) >= stop_amt) && use_stop_amt){
-        //    //stats->dump_knobs();
-        //    //stats->dump_counters();
-        //    //stats->dump_rates();
-        //    return true;
-        //  }
-        //}
-
-        // Increment the retired bundle count if even a single instruction retired
-        if(counter(commit_count) > prev_commit_count)
-          inc_counter(retired_bundle_count);
-
-        //REN_INT->dump_al(this,PAY,2,regread_log);
-        for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
-          writeback(lane_number);    // Writeback Stage
-        }
-        load_replay();
-        for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
-          execute(lane_number);    // Execute Stage
-        }
-        for (lane_number = 0; lane_number < ISSUE_WIDTH; lane_number++) {
-          register_read(lane_number);    // Register Read Stage
-        }
-        schedule();           // Schedule Stage
-        dispatch();           // Dispatch Stage
-        rename2();            // Rename Stage
-        rename1();            // Rename Stage
-        decode();             // Decode Stage
-        //// FETCH will insert NOPs instead of fetching real instructions
-        //// from cache if a fetch_exception is pending. This is to make
-        //// dispatch never gets stalled due to the absense of a full bundle
-        //// in the FETCH QUEUS.his is sort of like a stall.
-        //if(!fetch_exception){
-          fetch();            // Fetch Stage
-        //}
-
-        /////////////////////////////////////////////////////////////
-        // Miscellaneous stuff that must be processed every cycle.
-        /////////////////////////////////////////////////////////////
-
-        // Go to the next simulator cycle.
-        //next_cycle();
-        cycle++;
-        inc_counter(cycle_count);
-
-        if(cycle > (uint64_t)logging_on_at)
-          logging_on = true;
-
-	static uint64_t grading_plateau = 1000;
-	if (num_insn >= grading_plateau) {
-	   INFO("GRADING PLATEAU: %lu", grading_plateau);
-	   grading_plateau *= 10;
-	}
-
-        // For detecting deadlock, and monitoring progress.
-        if (MOD(cycle, 0x400000) == 0) {
-          INFO("(cycle = %" PRIcycle " ) num_insn = %.0f\tIPC = %.2f",
-               cycle,
-               (double)num_insn,
-               (double)num_insn/(double)cycle);
-          //stats->dump_counters();
-          //stats->dump_rates();
-
-	  static uint64_t num_insn_last_beat = 0;
-	  if (num_insn == num_insn_last_beat) {
-	     INFO("DEADLOCK.");
-	     assert(0);
-          }
-	  num_insn_last_beat = num_insn;
-        }
+        num_insn_last_beat = num_insn;
+      }
 
     }
   }
