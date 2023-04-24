@@ -56,6 +56,7 @@ renamer::renamer(uint64_t n_log_regs,
     for(uint64_t i=LOGREG_RMT_AMT_SIZE; i<PHYS_REG_SIZE; i++){
         FL.push_back(i); 
     }
+    db_fl_size = FL.size();
 
     // Initialize first "oldest" checkpoint buffer
     CPBuffer.head = 0;                                   
@@ -89,7 +90,6 @@ bool renamer::stall_reg(uint64_t bundle_dst)
 {
     //printf("stall_reg()\n");
     //TODO: CPR debug. remove after
-    int db_fl_size;
     db_fl_size = FL.size();
 
     if(FL.empty()){
@@ -119,13 +119,16 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 {
     //printf("rename_rdst()\n");
 
-    assert(!FL.empty());
-
     //unmap previous value
     unmap(RMT[log_reg]);
 
+    int tmp = db_fl_size;
+
+    assert(!FL.empty());
+
     uint64_t phys_reg = FL.back();
     FL.pop_back();
+    db_fl_size = FL.size();
 
     //Update usage counter and mapping corresponding to the phys reg
     map(phys_reg);
@@ -202,7 +205,8 @@ void renamer::checkpoint()
     assert(!(CPBuffer.head == CPBuffer.tail && CPBuffer.head_pb != CPBuffer.tail_pb));
 
     CPBuffer.CPBuffEntries[CPBuffer.tail].RMT_copy = RMT;
-    PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy;
+    //PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy;
+    CPBuffer.CPBuffEntries[CPBuffer.tail].PRFUnnmappedBits_copy = PRFUnnmappedBits;
 
     //increment usage counter of each Phys Reg in checkpointed RMT
     for(int i=0; i<RMT.size(); i++){
@@ -369,6 +373,7 @@ void renamer::unmap(uint64_t phys_reg)
 {
     //Only check if unmapped bit is going from 0 to 1
     // otherwise, it's already unmapped, no need to try_reg_reclamation()
+    //assert(!PRFUnnmappedBits[phys_reg]);
     if(!PRFUnnmappedBits[phys_reg]){
         PRFUnnmappedBits[phys_reg] = true;
 
@@ -387,13 +392,13 @@ void renamer::try_reg_reclamation(uint64_t phys_reg)
         assert(std::find(FL.begin(), FL.end(), phys_reg) == FL.end());
         
         //TODO: CPR debug. remove after
-        int db_fl_size;
-        db_fl_size = FL.size();
+        //int db_fl_size;
         
         //asserting that we're not too aggressive 
         assert(FL.size() < FL_SIZE);
 
         FL.push_back(phys_reg);
+        db_fl_size = FL.size();
     }
 }
 
@@ -486,6 +491,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
     //}
 
 
+    // TODO: CPR Move up for legibility
     // generating squash mask from chkpt_id to tail
     squash_mask = ~((1 << chkpt_id) - 1);
     to_tail = (1 << CPBuffer.tail) - 1;

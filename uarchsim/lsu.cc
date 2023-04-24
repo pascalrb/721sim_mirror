@@ -455,17 +455,17 @@ void lsu::execute_load(cycle_t cycle,
 	assert(LQ[lq_index].addr_avail);
 	assert(!LQ[lq_index].value_avail);
 
-        if (LQ[lq_index].amo) {   // Load reservation.
-           if ((lq_index == lq_head) && (lq_index_phase == lq_head_phase)) {
-	      // Load reservation has reached the head of the LQ and may proceed with the reservation.
-              // Set up load reservation to verifiy atomicity with a following store-conditional.
-              proc->get_state()->load_reservation = LQ[lq_index].addr;
-           }
-           else {
-	      // Load reservation has not yet reached the head of the LQ and must stall.
-	      return;
-	   }
-        }
+	if (LQ[lq_index].amo) {   // Load reservation.
+		if ((lq_index == lq_head) && (lq_index_phase == lq_head_phase)) {
+			// Load reservation has reached the head of the LQ and may proceed with the reservation.
+			// Set up load reservation to verifiy atomicity with a following store-conditional.
+			proc->get_state()->load_reservation = LQ[lq_index].addr;
+		}
+		else {
+			// Load reservation has not yet reached the head of the LQ and must stall.
+			return;
+		}
+	}
 
   inc_counter(spec_load_count);
 
@@ -481,8 +481,8 @@ void lsu::execute_load(cycle_t cycle,
 		LQ[lq_index].stat_load_stall_disambig = true;
 	}
 	else if (forward && partial) {
-           uint64_t load_chkpt_id = proc->PAY.buf[LQ[lq_index].pay_index].checkpoint_ID;
-           uint64_t store_chkpt_id = proc->PAY.buf[SQ[store_entry].pay_index].checkpoint_ID;
+		uint64_t load_chkpt_id = proc->PAY.buf[LQ[lq_index].pay_index].checkpoint_ID;
+		uint64_t store_chkpt_id = proc->PAY.buf[SQ[store_entry].pay_index].checkpoint_ID;
 	   if (load_chkpt_id == store_chkpt_id) {
 	      // The conflicting store and load of different sizes are in the same checkpoint interval.
 	      // Don't stall the load, otherwise CPR will deadlock.
@@ -642,6 +642,31 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	/////////////////////////////
 	// Restore LQ.
 	/////////////////////////////
+	//TODO: CPR here [recover_lq_tail -> lq_tail) (excluding lq_tail)
+    unsigned int i = recover_lq_tail;
+    while(i != lq_tail){
+        assert(LQ[i].valid);
+        if (LQ[i].addr_avail && !LQ[i].value_avail) {
+            //TODO: CPR double check that I'm accessing the correct object instance of PAY
+            //if(proc->PAY.buf[LQ[i].pay_index].A_valid){
+            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
+            //}
+            //if(proc->PAY.buf[LQ[i].pay_index].B_valid){
+            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
+            //}
+            //if(proc->PAY.buf[LQ[i].pay_index].D_valid){
+            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
+            //}
+            if(proc->PAY.buf[LQ[i].pay_index].C_valid){
+                proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
+            }
+        }
+        if (i == lq_size-1){
+            i = 0;
+        }else{
+            i++;
+        }
+    }
 
 	// Restore tail state.
 	lq_tail = recover_lq_tail;
@@ -658,22 +683,6 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	// (2) Set valid bits between head and tail.
 
 	for (unsigned int i = 0; i < lq_size; i++) {
-		if (LQ[i].addr_avail && !LQ[i].value_avail) {
-			//TODO: CPR double check that I'm accessing the correct object instance of PAY
-			//if(proc->PAY.buf[LQ[i].pay_index].A_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
-			//}
-			//if(proc->PAY.buf[LQ[i].pay_index].B_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
-			//}
-			//if(proc->PAY.buf[LQ[i].pay_index].D_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
-			//}
-			if(proc->PAY.buf[LQ[i].pay_index].C_valid){
-				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
-			}
-
-		}
 		LQ[i].valid = false;
 	}
 

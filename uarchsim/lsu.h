@@ -148,7 +148,7 @@ private:
                     unsigned int sq_index, bool sq_index_phase,
                     bool& forward,
                     unsigned int& store_entry,
-		    bool& partial);
+		                bool& partial);
 
   // The load execution datapath.
   void execute_load(cycle_t cycle,

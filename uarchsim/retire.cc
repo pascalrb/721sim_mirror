@@ -70,6 +70,10 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
                                        RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
          if(!proceed) return;
          
+         //TODO: CPR initialized load and store vars as false?? 
+         //    should they be static and persist throughout multiple calls of retire()
+         load = false; store = false;
+         
          // Sanity checks of the 'amo' and 'csr' flags. 
          assert(!RETSTATE.amo || IS_AMO(PAY.buf[PAY.head].flags)); 
          assert(!RETSTATE.csr || IS_CSR(PAY.buf[PAY.head].flags)); 

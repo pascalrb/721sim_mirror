@@ -19,6 +19,9 @@ private:
     //uint64_t AL_SIZE;                       // Number of entries in Active List
     uint64_t FL_SIZE;                       // Number of entries in Free List
 
+	//TODO: CPR debug
+    int db_fl_size;
+
 
 	// log_regs: 64, phys_regs: 320, AL_Size: 256
 

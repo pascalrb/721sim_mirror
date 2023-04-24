@@ -4,7 +4,7 @@
 
 void pipeline_t::execute(unsigned int lane_number) {
    unsigned int index;
-   bool hit;		// load value available
+   bool hit = false;		// load value available
    unsigned int depth;
 
    // Check if there is an instruction in the final Execute Stage of the specified Execution Lane.
@@ -158,6 +158,7 @@ void pipeline_t::execute(unsigned int lane_number) {
 
       // Copy instruction to Writeback Stage.
       // BUT: Stalled loads should not advance to the Writeback Stage.
+      //TODO: CPR - initialized hit to false
       if (!IS_LOAD(PAY.buf[index].flags) || hit) {
          Execution_Lanes[lane_number].wb.valid = true;
          Execution_Lanes[lane_number].wb.index = Execution_Lanes[lane_number].ex[depth].index;
