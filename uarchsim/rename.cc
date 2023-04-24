@@ -122,6 +122,7 @@ void pipeline_t::rename2() {
          instr_bw_chkpt = 0;
       }
 
+      //TODO: CPR - should this be else clause of above if stmnt???
       instr_bw_chkpt++;
       //TODO: CPR low confidence branch
    }

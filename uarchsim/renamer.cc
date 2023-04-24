@@ -95,7 +95,7 @@ bool renamer::stall_reg(uint64_t bundle_dst)
     if(FL.empty()){
         return true;
     }else{
-        if((FL.size() - bundle_dst) < 0){
+        if(((int64_t) FL.size() - (int64_t) bundle_dst) < 0){
             return true;
         }else{
             return false;
