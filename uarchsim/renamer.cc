@@ -430,13 +430,22 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
     }
 
     //checkpointing 
+    //TODO: CPR debug
+    bool prf_umbit_cp;
+    bool prf_umbit;
     RMT = CPBuffer.CPBuffEntries[chkpt_id].RMT_copy;
     //PRFUnnmappedBits = CPBuffer.CPBuffEntries[chkpt_id].PRFUnnmappedBits_copy;
     for(int i = 0; i < PRFUnnmappedBits.size(); i++){
+        prf_umbit_cp = CPBuffer.CPBuffEntries[chkpt_id].PRFUnnmappedBits_copy[i];
+        prf_umbit = PRFUnnmappedBits[i];
         if(CPBuffer.CPBuffEntries[chkpt_id].PRFUnnmappedBits_copy[i]){
-            unmap(PRFUnnmappedBits[i]);
+            if (!PRFUnnmappedBits[i]){
+                unmap(i);
+            }
         }else{
-            map(PRFUnnmappedBits[i]);
+            if (PRFUnnmappedBits[i]){
+                map(i);
+            }
         }
     }
     
@@ -523,9 +532,13 @@ void renamer::squash()
     //PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy;
     for(int i = 0; i < PRFUnnmappedBits.size(); i++){
         if(CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy[i]){
-            unmap(PRFUnnmappedBits[i]);
+            if (!PRFUnnmappedBits[i]){
+                unmap(i);
+            }
         }else{
-            map(PRFUnnmappedBits[i]);
+            if (PRFUnnmappedBits[i]){
+                map(i);
+            }
         }
     }
 
