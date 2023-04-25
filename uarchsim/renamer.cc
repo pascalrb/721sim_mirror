@@ -373,15 +373,15 @@ void renamer::unmap(uint64_t phys_reg)
 {
     //Only check if unmapped bit is going from 0 to 1
     // otherwise, it's already unmapped, no need to try_reg_reclamation()
-    //assert(!PRFUnnmappedBits[phys_reg]);
-    if(!PRFUnnmappedBits[phys_reg]){
+    assert(!PRFUnnmappedBits[phys_reg]);
+    //if(!PRFUnnmappedBits[phys_reg]){
         PRFUnnmappedBits[phys_reg] = true;
 
         //TODO: CPR can this be called multiple times for the same reg??
         //  (the same phys reg can be 1-0 for multiple times that unmap 
         // gets called. This will lead to duplicate push to FL)
         try_reg_reclamation(phys_reg);
-    }
+    //}
 }
 
 void renamer::try_reg_reclamation(uint64_t phys_reg)
