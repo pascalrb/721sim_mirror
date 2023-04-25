@@ -407,7 +407,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
 {
     //printf("resolve() - squash_mask: %lu\n", squash_mask);
 
-    uint64_t squash_mask, to_tail, tmp_chkpt;
+    uint64_t squash_mask, to_tail, tmp_chkpt, new_tail;
 
     if(next){
         if (chkpt_id == UNRESOLVED_BRANCHES_SIZE-1){
@@ -457,6 +457,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
     }else{
         tmp_chkpt++;
     }
+    new_tail = tmp_chkpt;
     while(tmp_chkpt != CPBuffer.tail){
         for(int i=0; i<RMT.size(); i++){
             dec_usage_counter(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
@@ -512,13 +513,12 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
         squash_mask |= to_tail;
     }
 
-    //Actually rollback the tail to the chkpt_id
-    if(CPBuffer.tail < chkpt_id){
+    //Actually rollback the tail to the chkpt_id+1 (next free entry)
+    if(CPBuffer.tail < new_tail){
         CPBuffer.tail_pb = !CPBuffer.tail_pb;
     }
-    CPBuffer.tail = chkpt_id;
+    CPBuffer.tail = new_tail;
 
-    
     return squash_mask;
 }
 
