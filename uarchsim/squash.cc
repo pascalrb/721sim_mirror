@@ -99,15 +99,6 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 			if (Execution_Lanes[i].ex[j].valid) {
 		   		Execution_Lanes[i].ex[j].valid = false;
 
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].A_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
-				}
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].B_phys_reg);
-				}
-				if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].D_phys_reg);
-				}
 				if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
 					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].C_phys_reg);
 				}
@@ -115,19 +106,6 @@ void pipeline_t::squash_complete(reg_t jump_PC) {
 		}
 		if (Execution_Lanes[i].wb.valid) {
 			Execution_Lanes[i].wb.valid = false;
-
-			if(PAY.buf[Execution_Lanes[i].wb.index].A_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].A_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].B_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].D_phys_reg);
-			}
-			if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
-				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].C_phys_reg);
-			}
 		}
 	}
 
@@ -152,13 +130,6 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 	// Rename2 Stage:
 	for (i = 0; i < dispatch_width; i++) {
 		RENAME2[i].valid = false;
-		
-		//TODO: CPR selectively decrement usage counter?
-		// When an instruction (that's part of a bundle) executes into an offending
-		// 	instruction, what happens to the bundle that were renamed?
-		//		(execute() stage gets called before rename() stage so may not need to 
-		//		cover this case. that "rename" bundle would actually be in the dispatch 
-		//		pipeline reg, which is covered below) 	
 	}
 
 	// Dispatch Stage:
@@ -209,15 +180,6 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 		// Execute Stage:
 		for (j = 0; j < Execution_Lanes[i].ex_depth; j++) {
 			if (Execution_Lanes[i].ex[j].valid && IS_CHKPT_IN_MASK(Execution_Lanes[i].ex[j].checkpoint_ID, squash_mask)) {
-				//if(PAY.buf[Execution_Lanes[i].ex[j].index].A_valid){
-				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
-				//}
-				//if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].B_phys_reg);
-				//}
-				//if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-				//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].D_phys_reg);
-				//}
 				if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
 					REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].C_phys_reg);
 				}
@@ -228,19 +190,6 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 
 		// Writeback Stage:
 		if (Execution_Lanes[i].wb.valid && IS_CHKPT_IN_MASK(Execution_Lanes[i].wb.checkpoint_ID, squash_mask)) {
-			//if(PAY.buf[Execution_Lanes[i].wb.index].A_valid){
-			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].A_phys_reg);
-			//}
-			//if(PAY.buf[Execution_Lanes[i].ex[j].index].B_valid){
-			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].B_phys_reg);
-			//}
-			//if(PAY.buf[Execution_Lanes[i].ex[j].index].D_valid){
-			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].D_phys_reg);
-			//}
-			//if(PAY.buf[Execution_Lanes[i].ex[j].index].C_valid){
-			//	REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].C_phys_reg);
-			//}
-
 			Execution_Lanes[i].wb.valid = false;
 		}
 	}

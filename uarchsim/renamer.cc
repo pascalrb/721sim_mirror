@@ -494,13 +494,6 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads,
         }
     }
 
-    //TODO: CPR do we need to update the PRF_rb?
-    //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
-    //    //update PRF ready bit to indicate that phys_reg is ready to be picked up
-    //    set_ready(i);
-    //}
-
-
     // TODO: CPR Move up for legibility
     // generating squash mask from chkpt_id to tail
     squash_mask = ~((1 << chkpt_id) - 1);
@@ -527,56 +520,9 @@ void renamer::squash()
 {
     //printf("squash()\n");
 
-    //checkpointing the RMT and Unmapped bit vector
-    RMT = CPBuffer.CPBuffEntries[CPBuffer.head].RMT_copy;
-    //PRFUnnmappedBits = CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy;
-    for(int i = 0; i < PRFUnnmappedBits.size(); i++){
-        if(CPBuffer.CPBuffEntries[CPBuffer.head].PRFUnnmappedBits_copy[i]){
-            if (!PRFUnnmappedBits[i]){
-                unmap(i);
-            }
-        }else{
-            if (PRFUnnmappedBits[i]){
-                map(i);
-            }
-        }
-    }
+    uint64_t total_loads, total_stores, total_branches;
 
-    uint64_t tmp_chkpt, tmp_head_plus_1;
-    tmp_chkpt = CPBuffer.head;
-    //preserving the oldest checkpoint by starting at next entry after chkpt_id
-    if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
-        tmp_chkpt = 0;
-    }else{
-        tmp_chkpt++;
-    }
-    tmp_head_plus_1 = tmp_chkpt;
-
-    //THE REAL HARDWARE WAY - naturally freeing register 
-    while(tmp_chkpt != CPBuffer.tail){
-        for(int i=0; i<RMT.size(); i++){
-            //This will automatically free regs, pushing them into the FL
-            dec_usage_counter(CPBuffer.CPBuffEntries[tmp_chkpt].RMT_copy[i]);
-        }
-    
-        if (tmp_chkpt == UNRESOLVED_BRANCHES_SIZE-1){
-            tmp_chkpt = 0;
-        }else{
-            tmp_chkpt++;
-        }
-    }
-
-    //Actually rollback the tail to head+1
-    if(CPBuffer.tail < tmp_head_plus_1){
-        CPBuffer.tail_pb = !CPBuffer.tail_pb;
-    }
-    CPBuffer.tail = tmp_head_plus_1;
-
-    //for(uint64_t i=0; i<PHYS_REG_SIZE; i++){
-    //    //update PRF ready bit to indicate that all of the phys regs are ready to be picked up
-    //    set_ready(i);
-    //}
-
+    rollback(CPBuffer.head, false, total_loads, total_stores, total_branches);
 }
 
 void renamer::set_exception(uint64_t checkpoint_ID)

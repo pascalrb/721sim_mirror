@@ -647,16 +647,6 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
     while(i != lq_tail){
         assert(LQ[i].valid);
         if (LQ[i].addr_avail && !LQ[i].value_avail) {
-            //TODO: CPR double check that I'm accessing the correct object instance of PAY
-            //if(proc->PAY.buf[LQ[i].pay_index].A_valid){
-            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
-            //}
-            //if(proc->PAY.buf[LQ[i].pay_index].B_valid){
-            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
-            //}
-            //if(proc->PAY.buf[LQ[i].pay_index].D_valid){
-            //  proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
-            //}
             if(proc->PAY.buf[LQ[i].pay_index].C_valid){
                 proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
             }
@@ -709,23 +699,6 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	// (2) Set valid bits between head and tail.
 
 	for (unsigned int i = 0; i < sq_size; i++) {
-		//TODO: CPR how come we don't decrement SQ either?
-		//if (LQ[i].addr_avail && !LQ[i].value_avail) {
-		//	//TODO: CPR double check that I'm accessing the correct object instance of PAY
-		//	if(proc->PAY.buf[LQ[i].pay_index].A_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[LQ[i].pay_index].B_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[LQ[i].pay_index].D_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[LQ[i].pay_index].C_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
-		//	}
-
-		//}
 		SQ[i].valid = false;
 	}
 
@@ -870,21 +843,10 @@ void lsu::flush() {
 	lq_length = 0;
 
 	for (unsigned int i = 0; i < lq_size; i++) {
-		if (LQ[i].addr_avail && !LQ[i].value_avail) {
-			//TODO: CPR double check that I'm accessing the correct object instance of PAY
-			//if(proc->PAY.buf[LQ[i].pay_index].A_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
-			//}
-			//if(proc->PAY.buf[LQ[i].pay_index].B_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
-			//}
-			//if(proc->PAY.buf[LQ[i].pay_index].D_valid){
-			//	proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
-			//}
+		if (LQ[i].valid && LQ[i].addr_avail && !LQ[i].value_avail) {
 			if(proc->PAY.buf[LQ[i].pay_index].C_valid){
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
 			}
-
 		}
 		LQ[i].valid = false;
 	}
@@ -897,23 +859,6 @@ void lsu::flush() {
 	sq_length = 0;
 
 	for (unsigned int i = 0; i < sq_size; i++) {
-		//if (SQ[i].valid) {
-		//	//TODO: CPR double check that I'm accessing the correct object instance of PAY
-		//	if(proc->PAY.buf[SQ[i].pay_index].A_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].A_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[SQ[i].pay_index].B_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].B_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[SQ[i].pay_index].D_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].D_phys_reg);
-		//	}
-		//	if(proc->PAY.buf[SQ[i].pay_index].C_valid){
-		//		proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].C_phys_reg);
-		//	}
-
-		//	SQ[i].valid = false;
-		//}
 		SQ[i].valid = false;
 	}
 }
