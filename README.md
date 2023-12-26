@@ -5,5 +5,3 @@
 
 Guided by a project from ECE721 at NC State University taught by Prof. [Eric Rotenberg](https://ece.ncsu.edu/people/ericro/).
 
-Implementation in `feature_cpr` branch
-
